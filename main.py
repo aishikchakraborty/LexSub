@@ -1,14 +1,19 @@
 # coding: utf-8
 import argparse
-import time
+import hashlib
 import math
 import os
+import time
 import torch
 import torch.nn as nn
 import torch.onnx
 
-import data
+# This should no longer be needed.
+import data as d
+
 import model
+
+from torchtext import data, datasets
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='./data/wikitext-2',
@@ -55,11 +60,82 @@ if torch.cuda.is_available():
 
 device = torch.device("cuda" if args.cuda else "cpu")
 
+class Dataset(data.TabularDataset):
+    def __init__(self, dataset, fields):
+       super(Dataset, self).__init__(dataset, 'tsv', fields=fields)
+
+    @classmethod
+    def splits(cls, fields, dataset_dir=None, train_file=None, valid_file=None, test_file=None, **kwargs):
+        if dataset_dir:
+            train_file = train_file or os.path.join(dataset_dir, 'train.txt')
+            valid_file = valid_file or os.path.join(dataset_dir, 'valid.txt')
+            test_file = test_file or os.path.join(dataset_dir, 'test.txt')
+
+        return (cls(train_file, fields, **kwargs),
+                cls(valid_file, fields, **kwargs),
+                cls(test_file, fields, **kwargs))
+
+    @classmethod
+    def iters(cls, dataset_dir=None, train_file=None, valid_file=None, test_file=None,
+                gpu=-1, batch_size=256, load_from_file=False, version=1, **kwargs):
+
+        def preprocessing(prop_list):
+            return [x.split(',') for x in prop_list]
+
+        TEXT_FIELD = data.Field(batch_first=True)
+        fields = [
+                ('text', TEXT_FIELD),
+                ('synonyms', data.NestedField(TEXT_FIELD, preprocessing=preprocessing)),
+                ('antonyms', data.NestedField(TEXT_FIELD, preprocessing=preprocessing))
+                ]
+
+        suffix = hashlib.md5('{}-{}-{}-{}-{}'.format(version, dataset_dir,
+                                                     train_file, valid_file, test_file)
+                                            .encode()).hexdigest()
+
+        examples_path = os.path.join(dataset_dir, '{}.pkl'.format(suffix))
+
+        save_iters = False
+        if not load_from_file:
+            try:
+                examples = torch.load(examples_path)
+            except:
+                load_from_file = True
+                save_iters = True
+
+        if load_from_file:
+                dataset = cls.splits(fields, dataset_dir, train_file, valid_file, test_file, **kwargs)
+                if save_iters:
+                    torch.save([d.examples for d in dataset], examples_path)
+
+        if not load_from_file:
+            dataset = [data.Dataset(ex, fields) for ex in examples]
+
+        train, valid, test = dataset
+        TEXT_FIELD.build_vocab(train)
+        train_iter, valid_iter, test_iter = data.BucketIterator.splits((train, valid, test), 
+                                                    batch_size=batch_size, shuffle=True, repeat=False, sort=False, 
+                                                    device=gpu, sort_key= lambda x : len(x.context))
+        return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
+
+train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir='./data/annotated_2/')
+
+ntokens = len(vocab)
+# How to use these iters.
+for batch in train_iter:
+    # (batch_size, seq_lens) 
+    text_idxs = batch.text
+    # (batch_size, max_num_synonyms, 2)
+    synonyms = batch.synonyms
+    # (batch_size, max_num_antonyms, 2)
+    antonyms = batch.antonyms
+
+# TODO: Following portion of code should be deleted.
 ###############################################################################
 # Load data
 ###############################################################################
 
-corpus = data.Corpus(args.data)
+corpus = d.Corpus(args.data)
 
 # Starting from sequential data, batchify arranges the dataset into columns.
 # For instance, with the alphabet as the sequence and batch size 4, we'd get

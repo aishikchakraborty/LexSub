@@ -35,30 +35,28 @@ def create_corpus(in_path, out_path):
     f1 = codecs.open(out_path, 'w', encoding="utf-8")
     with codecs.open(in_path, 'r', encoding="utf8") as f:
         for line in f:
-            synonyms = set([])
-            antonyms = set([])
-            line = line.strip()
-
-            if not line:
-                continue
-
-            words = line.split()
+            synonyms = []
+            antonyms = []
+            words = line.split() + ['<eos>']
             for w in words:
-                for syn in wordnet.synsets(w):
-                    for lemma in syn.lemmas():
-                        name = lemma.name()
-                        if name in word2idx:
-                            synonyms.add((w, name))
-                        for ant in lemma.antonyms():
-                            name = ant.name()
-                            if name in word2idx:
-                                antonyms.add((w, name))
-            words.append('<eos>')
-            word_str = ' '.join(words)
-            synonym_str = ' '.join([','.join(syn) for syn in synonyms])
-            antonym_str = ' '.join([','.join(ant) for ant in antonyms])
-            f1.write('{}\n'.format('\t'.join([word_str, synonym_str, antonym_str])))
+                syns = wordnet.synsets(w)
+                if syns:
+                    for s in syns:
+                        if s.name().split('.')[0] in idx2word:
+                            synonyms.append((w, s.name().split('.')[0]))
+                        for s_ in s.lemmas():
+                            if s_.antonyms():
+                                for s__ in s_.antonyms():
+                                    if s__.name().split()[0] in idx2word:
+                                        antonyms.append((w, s__.name().split()[0]))
+            if len(synonyms) == 0:
+                synonyms = [('<unk>', '<unk>')]
+            if len(antonyms) == 0:
+                antonyms = [('<unk>', '<unk>')]
+            f1.write(str(words) + '\t' + str(synonyms) + '\t' + str(antonyms) + '\n')
             f1.flush()
+
+
 
 create_vocab(os.path.join(args.data, 'train.txt'))
 create_vocab(os.path.join(args.data, 'test.txt'))

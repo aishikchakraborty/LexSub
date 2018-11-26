@@ -9,9 +9,6 @@ import torch
 import torch.nn as nn
 import torch.onnx
 
-# This should no longer be needed.
-import data as d
-
 import model
 
 from torchtext import data, datasets
@@ -33,7 +30,7 @@ parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
 parser.add_argument('--epochs', type=int, default=40,
                     help='upper epoch limit')
-parser.add_argument('--batch_size', type=int, default=20, metavar='N',
+parser.add_argument('--batch_size', type=int, default=3, metavar='N',
                     help='batch size')
 parser.add_argument('--bptt', type=int, default=35,
                     help='sequence length')
@@ -45,7 +42,7 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
-parser.add_argument('--log-interval', type=int, default=200, metavar='N',
+parser.add_argument('--log-interval', type=int, default=1, metavar='N',
                     help='report interval')
 parser.add_argument('--save', type=str, default='model.pt',
                     help='path to save the final model')
@@ -78,16 +75,19 @@ class Dataset(data.TabularDataset):
 
     @classmethod
     def iters(cls, dataset_dir=None, train_file=None, valid_file=None, test_file=None,
-                gpu=-1, batch_size=args.batch_size, load_from_file=False, version=1, **kwargs):
+                device=-1, batch_size=args.batch_size, load_from_file=False, version=1, **kwargs):
 
         def preprocessing(prop_list):
+            if len(prop_list) == 0:
+                return ['<pad>', '<pad>']
             return [x.split(',') for x in prop_list]
 
-        TEXT_FIELD = data.Field(batch_first=True)
+        TEXT_FIELD = data.Field(batch_first=True, include_lengths=False)
+        WORDNET_TEXT_FIELD = data.Field()
         fields = [
                 ('text', TEXT_FIELD),
-                ('synonyms', data.NestedField(TEXT_FIELD, preprocessing=preprocessing)),
-                ('antonyms', data.NestedField(TEXT_FIELD, preprocessing=preprocessing))
+                ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
                 ]
 
         suffix = hashlib.md5('{}-{}-{}-{}-{}'.format(version, dataset_dir,
@@ -114,12 +114,14 @@ class Dataset(data.TabularDataset):
 
         train, valid, test = dataset
         TEXT_FIELD.build_vocab(train)
+        WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
+
         train_iter, valid_iter, test_iter = data.BucketIterator.splits((train, valid, test),
-                                                    batch_size=args.batch_size, shuffle=True, repeat=False, sort=False,
-                                                    device=gpu, sort_key= lambda x : len(x.context))
+                                                    batch_size=batch_size, shuffle=True, repeat=False, sort=False,
+                                                    device=device, sort_key= lambda x : len(x.text))
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
 
-train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir='./data/wikitext-2/annotated/')
+train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir='./data/wikitext-2/annotated/', device=device)
 
 ntokens = len(vocab)
 print ntokens
@@ -165,24 +167,15 @@ def train():
     total_loss = 0.
     start_time = time.time()
     hidden = model.init_hidden(args.batch_size)
-    i = 0
-    for batch in train_iter:
-        i += 1
-        data = batch.text
-        print data
-        synonyms = batch.synonyms
-        antonyms = batch.antonyms
-        pad_data = np.ones((data.size(0), 1))*pad_idx
-        targets = torch.cat((data[:, 1:], torch.LongTensor(pad_data)), 1)
-
-        data = data.transpose(1, 0).to(device)
-        targets = targets.view(-1).to(device)
-        # Starting each batch, we detach the hidden state from how it was previously produced.
-        # If we didn't, the model would try backpropagating all the way to start of the dataset.
-        # hidden = repackage_hidden(hidden)
+    for i, batch in enumerate(train_iter):
+        data, synonyms, antonyms = batch.text, batch.synonyms, batch.antonyms
+        targets = get_targets(data)
+        data = data.transpose(1,0)
+        targets = targets.view(-1)
 
         model.zero_grad()
         output, hidden = model(data, hidden)
+        hidden = repackage_hidden(hidden)
         loss = criterion(output.view(-1, ntokens), targets)
         loss.backward()
 
@@ -190,9 +183,6 @@ def train():
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-        # for p in model.parameters():
-        #     p.data.add_(-lr, p.grad.data)
-
         total_loss += loss.item()
 
         if i % args.log_interval == 0 and i > 0:
@@ -200,7 +190,7 @@ def train():
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, i, len(train_data) // args.batch_size, lr,
+                epoch, i, len(train_iter), lr,
                 elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
             total_loss = 0
             start_time = time.time()
@@ -317,21 +307,47 @@ def get_batch(source, i):
     return data, target
 
 
+
+def get_targets(text):
+    pad_data = text.new_ones((text.size(0), 1))*pad_idx
+    return torch.cat((text[:, 1:], pad_data), dim=1)
+
 def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0.
-    ntokens = len(corpus.dictionary)
-    hidden = model.init_hidden(eval_batch_size)
+    hidden = model.init_hidden(args.batch_size)
+    start_time = time.time()
     with torch.no_grad():
-        for i in range(0, data_source.size(0) - 1, args.bptt):
-            data, targets = get_batch(data_source, i)
+        for i, batch in enumerate(data_source):
+
+            # As we use fixed size hidden, we might
+            # have to ignore the last batch as the
+            # items in this batch might be less than
+            # batch_size
+            if batch.batch_size < args.batch_size:
+                continue
+
+            data = batch.text
+            targets = get_targets(data)
+            data = data.transpose(0,1)
+            targets = targets.view(-1)
             output, hidden = model(data, hidden)
             output_flat = output.view(-1, ntokens)
             total_loss += len(data) * criterion(output_flat, targets).item()
             hidden = repackage_hidden(hidden)
-    return total_loss / (len(data_source) - 1)
 
+            if i % args.log_interval == 0 and i > 0:
+                cur_loss = total_loss / args.log_interval
+                elapsed = time.time() - start_time
+                print('| {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
+                        'loss {:5.2f} | ppl {:8.2f}'.format(
+                    i, len(data_source), lr,
+                    elapsed * 1000 / args.log_interval, cur_loss, cur_loss))
+                total_loss = 0
+                start_time = time.time()
+
+    return total_loss / (len(data_source) - 1)
 
 # def train():
 #     # Turn on training mode which enables dropout.

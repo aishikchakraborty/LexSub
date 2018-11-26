@@ -124,7 +124,6 @@ class Dataset(data.TabularDataset):
 train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir='./data/wikitext-2/annotated/', device=device)
 
 ntokens = len(vocab)
-print ntokens
 pad_idx = vocab.stoi['<pad>']
 
 lr = args.lr
@@ -134,12 +133,21 @@ best_val_loss = None
 for batch in train_iter:
     # (batch_size, seq_lens)
     text_idxs = batch.text
-    print text_idxs.size()
     # (batch_size, max_num_synonyms, 2)
     synonyms = batch.synonyms
-    print synonyms.size()
     # (batch_size, max_num_antonyms, 2)
     antonyms = batch.antonyms
+
+def get_targets(text):
+    pad_data = text.new_ones((text.size(0), 1))*pad_idx
+    return torch.cat((text[:, 1:], pad_data), dim=1)
+
+def repackage_hidden(h):
+    """Wraps hidden states in new Tensors, to detach them from their history."""
+    if isinstance(h, torch.Tensor):
+        return h.detach()
+    else:
+        return tuple(repackage_hidden(v) for v in h)
 
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
 criterion = nn.CrossEntropyLoss()
@@ -148,17 +156,37 @@ def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0.
-    hidden = model.init_hidden(eval_batch_size)
+    hidden = model.init_hidden(args.batch_size)
+    start_time = time.time()
     with torch.no_grad():
-        for batch in data_source:
-            data = batch.text
-            pad_data = np.ones((data.size(0), 1))*pad_idx
-            targets = torch.cat((data[:, 1:], torch.LongTensor(pad_data)), 1)
+        for i, batch in enumerate(data_source):
 
+            # As we use fixed size hidden, we might
+            # have to ignore the last batch as the
+            # items in this batch might be less than
+            # batch_size
+            if batch.batch_size < args.batch_size:
+                continue
+
+            data = batch.text
+            targets = get_targets(data)
+            data = data.transpose(0,1)
+            targets = targets.view(-1)
             output, hidden = model(data, hidden)
             output_flat = output.view(-1, ntokens)
             total_loss += len(data) * criterion(output_flat, targets).item()
-            # hidden = repackage_hidden(hidden)
+            hidden = repackage_hidden(hidden)
+
+            if i % args.log_interval == 0 and i > 0:
+                cur_loss = total_loss / args.log_interval
+                elapsed = time.time() - start_time
+                print('| {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
+                        'loss {:5.2f} | ppl {:8.2f}'.format(
+                    i, len(data_source), lr,
+                    elapsed * 1000 / args.log_interval, cur_loss, cur_loss))
+                total_loss = 0
+                start_time = time.time()
+
     return total_loss / (len(data_source) - 1)
 
 def train():
@@ -281,14 +309,6 @@ ntokens = len(corpus.dictionary)
 ###############################################################################
 # Training code
 ###############################################################################
-
-def repackage_hidden(h):
-    """Wraps hidden states in new Tensors, to detach them from their history."""
-    if isinstance(h, torch.Tensor):
-        return h.detach()
-    else:
-        return tuple(repackage_hidden(v) for v in h)
-
 
 # get_batch subdivides the source data into chunks of length args.bptt.
 # If source is equal to the example output of the batchify function, with

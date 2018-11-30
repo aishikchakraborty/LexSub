@@ -22,7 +22,7 @@ parser.add_argument('--emsize', type=int, default=200,
                     help='size of word embeddings')
 parser.add_argument('--nhid', type=int, default=200,
                     help='number of hidden units per layer')
-parser.add_argument('--nlayers', type=int, default=1,
+parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
 parser.add_argument('--lr', type=float, default=0.001,
                     help='initial learning rate')
@@ -129,14 +129,14 @@ pad_idx = vocab.stoi['<pad>']
 lr = args.lr
 best_val_loss = None
 
-# How to use these iters.
-for batch in train_iter:
-    # (batch_size, seq_lens)
-    text_idxs = batch.text
-    # (batch_size, max_num_synonyms, 2)
-    synonyms = batch.synonyms
-    # (batch_size, max_num_antonyms, 2)
-    antonyms = batch.antonyms
+# # How to use these iters.
+# for batch in train_iter:
+#     # (batch_size, seq_lens)
+#     text_idxs = batch.text
+#     # (batch_size, max_num_synonyms, 2)
+#     synonyms = batch.synonyms
+#     # (batch_size, max_num_antonyms, 2)
+#     antonyms = batch.antonyms
 
 def get_targets(text):
     pad_data = text.new_ones((text.size(0), 1))*pad_idx
@@ -150,7 +150,15 @@ def repackage_hidden(h):
         return tuple(repackage_hidden(v) for v in h)
 
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
-criterion = nn.CrossEntropyLoss()
+mask = torch.ones(ntokens).to(device)
+mask[pad_idx] = 0.
+criterion = nn.CrossEntropyLoss(weight=mask)
+
+def get_batch(source, i):
+    seq_len = min(args.bptt, len(source) - 1 - i)
+    data = source[i:i+seq_len]
+    target = source[i+1:i+1+seq_len].view(-1)
+    return data, target
 
 def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
@@ -190,13 +198,19 @@ def train():
         targets = get_targets(data)
 
         data = data.transpose(1,0)
+        # print targets.shape
         targets = targets.view(-1)
 
         optimizer.zero_grad()
         # model.zero_grad()
         output, hidden = model(data, hidden)
+        output = output.view(-1, ntokens)
+        # output_ = output_[range(output_.shape[0]), targets] * mask.float()
+        # targets_ = targets[range(targets.shape[0])] * mask.long()
+        # print output_.shape
+        # print targets_.shape
         hidden = repackage_hidden(hidden)
-        loss = criterion(output.view(-1, ntokens), targets)
+        loss = criterion(output, targets)
         loss.backward()
 
 
@@ -210,10 +224,10 @@ def train():
         if idx % args.log_interval == 0 and idx > 0:
             cur_loss = total_loss / idx
             elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
+            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
                 epoch, idx, len(train_iter), lr,
-                elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)), end='\r')
+                elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
             start_time = time.time()
 
     print()
@@ -235,7 +249,7 @@ try:
             best_val_loss = val_loss
         else:
             # Anneal the learning rate if no improvement has been seen in the validation dataset.
-            lr /= 4.0
+            lr /= 2.0
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')

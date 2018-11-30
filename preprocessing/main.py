@@ -3,18 +3,28 @@ import argparse
 import time
 import math
 import os
+import nltk
 from nltk.corpus import wordnet
 import codecs
+import string
 
 parser = argparse.ArgumentParser(description='Preprocessing for finding synonym/antonym relations')
 parser.add_argument('--data', type=str, default='../data/wikitext-2',
                     help='location of the data corpus')
 parser.add_argument('--out-dir', type=str, default='../data/wikitext-2/annotated',
                     help='location of the output directory')
+arser.add_argument('--bptt', type=int, default=35,
+                    help='bptt length')
 
 args = parser.parse_args()
 word2idx = {}
 idx2word = []
+
+# taken from https://stackoverflow.com/questions/8689795/how-can-i-remove-non-ascii-characters-but-leave-periods-and-spaces-using-python
+def remove_non_ascii(text):
+    printable = set(string.printable)
+    cleaned_text = filter(lambda x: x in printable, text)
+    return ''.join([ch for ch in cleaned_text]) # a hack to convert filter object to string for Python 3
 
 def add_word(word):
     if word not in word2idx:
@@ -37,22 +47,26 @@ def create_corpus(in_path, out_path):
         for line in f:
             synonyms = set([])
             antonyms = set([])
-            line = line.strip()
+            line = remove_non_ascii(line.strip())
 
             if not line:
                 continue
-
             words = line.split()
-            for w in words:
-                for syn in wordnet.synsets(w):
-                    for lemma in syn.lemmas():
-                        name = lemma.name()
-                        if name in word2idx:
-                            synonyms.add((w, name))
-                        for ant in lemma.antonyms():
-                            name = ant.name()
+            # use simple nltk pos tagger for now
+            pos_tags = nltk.pos_tag(words)
+
+            for i, w in enumerate(words):
+                # consider only adjectives for synonyms and antonyms
+                if pos_tags[i][1] == 'JJ':
+                    for syn in wordnet.synsets(w):
+                        for lemma in syn.lemmas():
+                            name = lemma.name()
                             if name in word2idx:
-                                antonyms.add((w, name))
+                                synonyms.add((w, name))
+                            for ant in lemma.antonyms():
+                                name = ant.name()
+                                if name in word2idx:
+                                    antonyms.add((w, name))
             words.append('<eos>')
             word_str = ' '.join(words)
             synonym_str = ' '.join([','.join(syn) for syn in synonyms])

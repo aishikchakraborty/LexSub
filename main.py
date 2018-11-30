@@ -24,7 +24,7 @@ parser.add_argument('--nhid', type=int, default=200,
                     help='number of hidden units per layer')
 parser.add_argument('--nlayers', type=int, default=1,
                     help='number of layers')
-parser.add_argument('--lr', type=float, default=20,
+parser.add_argument('--lr', type=float, default=0.001,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
@@ -42,7 +42,7 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
-parser.add_argument('--log-interval', type=int, default=1, metavar='N',
+parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                     help='report interval')
 parser.add_argument('--save', type=str, default='model.pt',
                     help='path to save the final model')
@@ -82,7 +82,7 @@ class Dataset(data.TabularDataset):
                 return ['<pad>', '<pad>']
             return [x.split(',') for x in prop_list]
 
-        TEXT_FIELD = data.Field(batch_first=True, include_lengths=False)
+        TEXT_FIELD = data.Field(batch_first=True, include_lengths=False, eos_token='EOS', init_token='SOS')
         WORDNET_TEXT_FIELD = data.Field()
         fields = [
                 ('text', TEXT_FIELD),
@@ -173,35 +173,27 @@ def evaluate(data_source):
             data = data.transpose(0,1)
             targets = targets.view(-1)
             output, hidden = model(data, hidden)
-            output_flat = output.view(-1, ntokens)
-            total_loss += len(data) * criterion(output_flat, targets).item()
             hidden = repackage_hidden(hidden)
-
-            if i % args.log_interval == 0 and i > 0:
-                cur_loss = total_loss / args.log_interval
-                elapsed = time.time() - start_time
-                print('| {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
-                        'loss {:5.2f} | ppl {:8.2f}'.format(
-                    i, len(data_source), lr,
-                    elapsed * 1000 / args.log_interval, cur_loss, cur_loss))
-                total_loss = 0
-                start_time = time.time()
+            total_loss +=  criterion(output.view(-1, ntokens), targets).item()
 
     return total_loss / (len(data_source) - 1)
 
+optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 def train():
     # Turn on training mode which enables dropout.
     model.train()
     total_loss = 0.
     start_time = time.time()
     hidden = model.init_hidden(args.batch_size)
-    for i, batch in enumerate(train_iter):
+    for idx, batch in enumerate(train_iter):
         data, synonyms, antonyms = batch.text, batch.synonyms, batch.antonyms
         targets = get_targets(data)
+
         data = data.transpose(1,0)
         targets = targets.view(-1)
 
-        model.zero_grad()
+        optimizer.zero_grad()
+        # model.zero_grad()
         output, hidden = model(data, hidden)
         hidden = repackage_hidden(hidden)
         loss = criterion(output.view(-1, ntokens), targets)
@@ -210,19 +202,21 @@ def train():
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        optimizer.step()
+        # for p in model.parameters():
+            # p.data.add_(-lr, p.grad.data)
         total_loss += loss.item()
 
-        if i % args.log_interval == 0 and i > 0:
-            cur_loss = total_loss / args.log_interval
+        if idx % args.log_interval == 0 and idx > 0:
+            cur_loss = total_loss / idx
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, i, len(train_iter), lr,
-                elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
-            total_loss = 0
+                epoch, idx, len(train_iter), lr,
+                elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)), end='\r')
             start_time = time.time()
 
+    print()
 
 try:
     for epoch in range(1, args.epochs+1):
@@ -356,16 +350,6 @@ def evaluate(data_source):
             output_flat = output.view(-1, ntokens)
             total_loss += len(data) * criterion(output_flat, targets).item()
             hidden = repackage_hidden(hidden)
-
-            if i % args.log_interval == 0 and i > 0:
-                cur_loss = total_loss / args.log_interval
-                elapsed = time.time() - start_time
-                print('| {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
-                        'loss {:5.2f} | ppl {:8.2f}'.format(
-                    i, len(data_source), lr,
-                    elapsed * 1000 / args.log_interval, cur_loss, cur_loss))
-                total_loss = 0
-                start_time = time.time()
 
     return total_loss / (len(data_source) - 1)
 

@@ -30,7 +30,7 @@ parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
 parser.add_argument('--epochs', type=int, default=40,
                     help='upper epoch limit')
-parser.add_argument('--batch_size', type=int, default=3, metavar='N',
+parser.add_argument('--batch-size', type=int, default=10, metavar='N',
                     help='batch size')
 parser.add_argument('--bptt', type=int, default=35,
                     help='sequence length')
@@ -129,14 +129,9 @@ pad_idx = vocab.stoi['<pad>']
 lr = args.lr
 best_val_loss = None
 
-# # How to use these iters.
-# for batch in train_iter:
-#     # (batch_size, seq_lens)
-#     text_idxs = batch.text
-#     # (batch_size, max_num_synonyms, 2)
-#     synonyms = batch.synonyms
-#     # (batch_size, max_num_antonyms, 2)
-#     antonyms = batch.antonyms
+# # How to use these iters
+
+
 
 def get_targets(text):
     pad_data = text.new_ones((text.size(0), 1))*pad_idx
@@ -157,7 +152,7 @@ criterion = nn.CrossEntropyLoss(weight=mask)
 def get_batch(source, i):
     seq_len = min(args.bptt, len(source) - 1 - i)
     data = source[i:i+seq_len]
-    target = source[i+1:i+1+seq_len].view(-1)
+    target = get_targets(data)
     return data, target
 
 def evaluate(data_source):
@@ -192,17 +187,20 @@ def train():
     model.train()
     total_loss = 0.
     start_time = time.time()
-    hidden = model.init_hidden(args.batch_size)
-    for idx, batch in enumerate(train_iter):
-        data, synonyms, antonyms = batch.text, batch.synonyms, batch.antonyms
-        targets = get_targets(data)
 
+    # train_text = torch.LongTensor(train_text).to(device)
+
+    hidden = model.init_hidden(args.batch_size)
+
+    for idx, batch in enumerate(train_iter):
+        for i in range(batch.text.size(0)):
+            data, targets = get_batch(batch.text, i)
         data = data.transpose(1,0)
         # print targets.shape
         targets = targets.view(-1)
 
         optimizer.zero_grad()
-        # model.zero_grad()
+        model.zero_grad()
         output, hidden = model(data, hidden)
         output = output.view(-1, ntokens)
         # output_ = output_[range(output_.shape[0]), targets] * mask.float()
@@ -224,6 +222,8 @@ def train():
         if idx % args.log_interval == 0 and idx > 0:
             cur_loss = total_loss / idx
             elapsed = time.time() - start_time
+            # print(data.shape)
+
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
                 epoch, idx, len(train_iter), lr,

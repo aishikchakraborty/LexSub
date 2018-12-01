@@ -13,8 +13,10 @@ parser.add_argument('--data', type=str, default='../data/wikitext-2',
                     help='location of the data corpus')
 parser.add_argument('--out-dir', type=str, default='../data/wikitext-2/annotated',
                     help='location of the output directory')
-arser.add_argument('--bptt', type=int, default=35,
+parser.add_argument('--bptt', type=int, default=35,
                     help='bptt length')
+parser.add_argument('--max-pair', type=int, default=35,
+                    help='max no of synonyms')
 
 args = parser.parse_args()
 word2idx = {}
@@ -52,27 +54,37 @@ def create_corpus(in_path, out_path):
             if not line:
                 continue
             words = line.split()
+            words = words + ['<eos>']
             # use simple nltk pos tagger for now
             pos_tags = nltk.pos_tag(words)
 
+            # for i in range(0, len(words) - args.bptt + 1):
+                # window = words[i:i+args.bptt]
+                # for j, w in enumerate(window):
             for i, w in enumerate(words):
-                # consider only adjectives for synonyms and antonyms
+                    # consider only adjectives for synonyms and antonyms
                 if pos_tags[i][1] == 'JJ':
                     for syn in wordnet.synsets(w):
                         for lemma in syn.lemmas():
                             name = lemma.name()
                             if name in word2idx:
-                                synonyms.add((w, name))
+                                if len(synonyms) < args.max_pair:
+                                    synonyms.add((w, name))
+                                else:
+                                    break
                             for ant in lemma.antonyms():
                                 name = ant.name()
                                 if name in word2idx:
-                                    antonyms.add((w, name))
-            words.append('<eos>')
-            word_str = ' '.join(words)
-            synonym_str = ' '.join([','.join(syn) for syn in synonyms])
-            antonym_str = ' '.join([','.join(ant) for ant in antonyms])
-            f1.write('{}\n'.format('\t'.join([word_str, synonym_str, antonym_str])))
-            f1.flush()
+                                    if len(antonyms) < args.max_pair:
+                                        antonyms.add((w, name))
+                                    else:
+                                        break
+
+                word_str = ' '.join(words)
+                synonym_str = ' '.join([','.join(syn) for syn in synonyms])
+                antonym_str = ' '.join([','.join(ant) for ant in antonyms])
+                f1.write('{}\n'.format('\t'.join([word_str, synonym_str, antonym_str])))
+                f1.flush()
 
 create_vocab(os.path.join(args.data, 'train.txt'))
 create_vocab(os.path.join(args.data, 'test.txt'))

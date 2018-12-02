@@ -30,7 +30,7 @@ parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
 parser.add_argument('--epochs', type=int, default=40,
                     help='upper epoch limit')
-parser.add_argument('--batch-size', type=int, default=10, metavar='N',
+parser.add_argument('--batch-size', type=int, default=3, metavar='N',
                     help='batch size')
 parser.add_argument('--bptt', type=int, default=35,
                     help='sequence length')
@@ -129,9 +129,6 @@ pad_idx = vocab.stoi['<pad>']
 lr = args.lr
 best_val_loss = None
 
-# # How to use these iters
-
-
 
 def get_targets(text):
     pad_data = text.new_ones((text.size(0), 1))*pad_idx
@@ -145,9 +142,7 @@ def repackage_hidden(h):
         return tuple(repackage_hidden(v) for v in h)
 
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
-mask = torch.ones(ntokens).to(device)
-mask[pad_idx] = 0.
-criterion = nn.CrossEntropyLoss(weight=mask)
+criterion = nn.CrossEntropyLoss(reduction='none')
 
 def get_batch(source, i):
     seq_len = min(args.bptt, len(source) - 1 - i)
@@ -175,9 +170,10 @@ def evaluate(data_source):
             targets = get_targets(data)
             data = data.transpose(0,1)
             targets = targets.view(-1)
+            mask = 1 - (targets == pad_idx).float()
             output, hidden = model(data, hidden)
             hidden = repackage_hidden(hidden)
-            total_loss +=  criterion(output.view(-1, ntokens), targets).item()
+            total_loss += torch.mean(criterion(output.view(-1, ntokens), targets) * mask).item()
 
     return total_loss / (len(data_source) - 1)
 
@@ -187,20 +183,17 @@ def train():
     model.train()
     total_loss = 0.
     start_time = time.time()
-
-    # train_text = torch.LongTensor(train_text).to(device)
-
     hidden = model.init_hidden(args.batch_size)
-
     for idx, batch in enumerate(train_iter):
-        for i in range(batch.text.size(0)):
-            data, targets = get_batch(batch.text, i)
+        data, synonyms, antonyms = batch.text, batch.synonyms, batch.antonyms
+        targets = get_targets(data)
+
         data = data.transpose(1,0)
-        # print targets.shape
         targets = targets.view(-1)
 
+        mask = 1 - (targets == pad_idx).float()
         optimizer.zero_grad()
-        model.zero_grad()
+        # model.zero_grad()
         output, hidden = model(data, hidden)
         output = output.view(-1, ntokens)
         # output_ = output_[range(output_.shape[0]), targets] * mask.float()
@@ -208,7 +201,7 @@ def train():
         # print output_.shape
         # print targets_.shape
         hidden = repackage_hidden(hidden)
-        loss = criterion(output, targets)
+        loss = torch.mean(criterion(output, targets) * mask)
         loss.backward()
 
 
@@ -222,8 +215,6 @@ def train():
         if idx % args.log_interval == 0 and idx > 0:
             cur_loss = total_loss / idx
             elapsed = time.time() - start_time
-            # print(data.shape)
-
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
                 epoch, idx, len(train_iter), lr,

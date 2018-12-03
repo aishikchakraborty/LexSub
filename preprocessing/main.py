@@ -68,23 +68,17 @@ def create_corpus(in_path, out_path):
                         for lemma in syn.lemmas():
                             name = lemma.name()
                             if name in word2idx:
-                                if len(synonyms) < args.max_pair:
-                                    synonyms.add((w, name))
-                                else:
-                                    break
-                            for ant in lemma.antonyms():
+                                synonyms.add((w, name))
+                        for ant in lemma.antonyms():
                                 name = ant.name()
                                 if name in word2idx:
-                                    if len(antonyms) < args.max_pair:
-                                        antonyms.add((w, name))
-                                    else:
-                                        break
+                                    antonyms.add((w, name))
 
-                word_str = ' '.join(words)
-                synonym_str = ' '.join([','.join(syn) for syn in synonyms])
-                antonym_str = ' '.join([','.join(ant) for ant in antonyms])
-                f1.write('{}\n'.format('\t'.join([word_str, synonym_str, antonym_str])))
-                f1.flush()
+            word_str = ' '.join(words)
+            synonym_str = ' '.join([','.join(syn) for syn in synonyms])
+            antonym_str = ' '.join([','.join(ant) for ant in antonyms])
+            f1.write('{}\n'.format('\t'.join([word_str, synonym_str, antonym_str])))
+            f1.flush()
 
 create_vocab(os.path.join(args.data, 'train.txt'))
 create_vocab(os.path.join(args.data, 'test.txt'))

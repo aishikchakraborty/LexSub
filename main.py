@@ -141,7 +141,8 @@ def repackage_hidden(h):
     else:
         return tuple(repackage_hidden(v) for v in h)
 
-model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
+# model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
+model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
 criterion = nn.CrossEntropyLoss(reduction='none')
 
 def get_batch(source, i):
@@ -179,6 +180,58 @@ def evaluate(data_source):
 
 optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 def train():
+    # Turn on training mode which enables dropout.
+    model.train()
+    total_loss_ = 0.
+    start_time = time.time()
+    hidden = model.init_hidden(args.batch_size)
+    for idx, batch in enumerate(train_iter):
+        data, synonyms, antonyms = batch.text, batch.synonyms, batch.antonyms
+        targets = get_targets(data)
+
+        data = data.transpose(1,0)
+        targets = targets.view(-1)
+
+        mask = 1 - (targets == pad_idx).float()
+        optimizer.zero_grad()
+        # model.zero_grad()
+        # output, hidden = model(data, hidden)
+        # print(antonyms.shape)
+        if antonyms.size(2) == 2:
+            output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
+
+            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=2))
+
+            output = output.view(-1, ntokens)
+            # output_ = output_[range(output_.shape[0]), targets] * mask.float()
+            # targets_ = targets[range(targets.shape[0])] * mask.long()
+            # print output_.shape
+            # print targets_.shape
+            hidden = repackage_hidden(hidden)
+            loss = torch.mean(criterion(output, targets) * mask)
+            total_loss = loss + loss_syn
+            total_loss.backward()
+
+
+            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+            optimizer.step()
+            # for p in model.parameters():
+                # p.data.add_(-lr, p.grad.data)
+            total_loss_ += total_loss.item()
+
+            if idx % args.log_interval == 0 and idx > 0:
+                cur_loss = total_loss_ / idx
+                elapsed = time.time() - start_time
+                print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | '
+                        'loss {:5.2f} | ppl {:8.2f}'.format(
+                    epoch, idx, len(train_iter), lr,
+                    elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
+                start_time = time.time()
+
+    print()
+
+def train_wn():
     # Turn on training mode which enables dropout.
     model.train()
     total_loss = 0.
@@ -222,6 +275,7 @@ def train():
             start_time = time.time()
 
     print()
+
 
 try:
     for epoch in range(1, args.epochs+1):
@@ -283,19 +337,19 @@ corpus = d.Corpus(args.data)
 # dependence of e. g. 'g' on 'f' can not be learned, but allows more efficient
 # batch processing.
 
-def batchify(data, bsz):
-    # Work out how cleanly we can divide the dataset into bsz parts.
-    nbatch = data.size(0) // bsz
-    # Trim off any extra elements that wouldn't cleanly fit (remainders).
-    data = data.narrow(0, 0, nbatch * bsz)
-    # Evenly divide the data across the bsz batches.
-    data = data.view(bsz, -1).t().contiguous()
-    return data.to(device)
-
-eval_batch_size = 10
-train_data = batchify(corpus.train, args.batch_size)
-val_data = batchify(corpus.valid, eval_batch_size)
-test_data = batchify(corpus.test, eval_batch_size)
+# def batchify(data, bsz):
+#     # Work out how cleanly we can divide the dataset into bsz parts.
+#     nbatch = data.size(0) // bsz
+#     # Trim off any extra elements that wouldn't cleanly fit (remainders).
+#     data = data.narrow(0, 0, nbatch * bsz)
+#     # Evenly divide the data across the bsz batches.
+#     data = data.view(bsz, -1).t().contiguous()
+#     return data.to(device)
+#
+# eval_batch_size = 10
+# train_data = batchify(corpus.train, args.batch_size)
+# val_data = batchify(corpus.valid, eval_batch_size)
+# test_data = batchify(corpus.test, eval_batch_size)
 
 ###############################################################################
 # Build the model
@@ -319,44 +373,44 @@ ntokens = len(corpus.dictionary)
 # by the batchify function. The chunks are along dimension 0, corresponding
 # to the seq_len dimension in the LSTM.
 
-def get_batch(source, i):
-    seq_len = min(args.bptt, len(source) - 1 - i)
-    data = source[i:i+seq_len]
-    target = source[i+1:i+1+seq_len].view(-1)
-    return data, target
-
-
-
-def get_targets(text):
-    pad_data = text.new_ones((text.size(0), 1))*pad_idx
-    return torch.cat((text[:, 1:], pad_data), dim=1)
-
-def evaluate(data_source):
-    # Turn on evaluation mode which disables dropout.
-    model.eval()
-    total_loss = 0.
-    hidden = model.init_hidden(args.batch_size)
-    start_time = time.time()
-    with torch.no_grad():
-        for i, batch in enumerate(data_source):
-
-            # As we use fixed size hidden, we might
-            # have to ignore the last batch as the
-            # items in this batch might be less than
-            # batch_size
-            if batch.batch_size < args.batch_size:
-                continue
-
-            data = batch.text
-            targets = get_targets(data)
-            data = data.transpose(0,1)
-            targets = targets.view(-1)
-            output, hidden = model(data, hidden)
-            output_flat = output.view(-1, ntokens)
-            total_loss += len(data) * criterion(output_flat, targets).item()
-            hidden = repackage_hidden(hidden)
-
-    return total_loss / (len(data_source) - 1)
+# def get_batch(source, i):
+#     seq_len = min(args.bptt, len(source) - 1 - i)
+#     data = source[i:i+seq_len]
+#     target = source[i+1:i+1+seq_len].view(-1)
+#     return data, target
+#
+#
+#
+# def get_targets(text):
+#     pad_data = text.new_ones((text.size(0), 1))*pad_idx
+#     return torch.cat((text[:, 1:], pad_data), dim=1)
+#
+# def evaluate(data_source):
+#     # Turn on evaluation mode which disables dropout.
+#     model.eval()
+#     total_loss = 0.
+#     hidden = model.init_hidden(args.batch_size)
+#     start_time = time.time()
+#     with torch.no_grad():
+#         for i, batch in enumerate(data_source):
+#
+#             # As we use fixed size hidden, we might
+#             # have to ignore the last batch as the
+#             # items in this batch might be less than
+#             # batch_size
+#             if batch.batch_size < args.batch_size:
+#                 continue
+#
+#             data = batch.text
+#             targets = get_targets(data)
+#             data = data.transpose(0,1)
+#             targets = targets.view(-1)
+#             output, hidden = model(data, hidden)
+#             output_flat = output.view(-1, ntokens)
+#             total_loss += len(data) * criterion(output_flat, targets).item()
+#             hidden = repackage_hidden(hidden)
+#
+#     return total_loss / (len(data_source) - 1)
 
 # def train():
 #     # Turn on training mode which enables dropout.

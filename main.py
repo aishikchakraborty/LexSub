@@ -83,7 +83,7 @@ class Dataset(data.TabularDataset):
             return [x.split(',') for x in prop_list]
 
         TEXT_FIELD = data.Field(batch_first=True, include_lengths=False, eos_token='EOS', init_token='SOS')
-        WORDNET_TEXT_FIELD = data.Field()
+        WORDNET_TEXT_FIELD = data.Field(fix_length=2)
         fields = [
                 ('text', TEXT_FIELD),
                 ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
@@ -197,37 +197,36 @@ def train():
         # model.zero_grad()
         # output, hidden = model(data, hidden)
         # print(antonyms.shape)
-        if antonyms.size(2) == 2:
-            output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
+        output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
 
-            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=2))
+        loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=2))
 
-            output = output.view(-1, ntokens)
-            # output_ = output_[range(output_.shape[0]), targets] * mask.float()
-            # targets_ = targets[range(targets.shape[0])] * mask.long()
-            # print output_.shape
-            # print targets_.shape
-            hidden = repackage_hidden(hidden)
-            loss = torch.mean(criterion(output, targets) * mask)
-            total_loss = loss + loss_syn
-            total_loss.backward()
+        output = output.view(-1, ntokens)
+        # output_ = output_[range(output_.shape[0]), targets] * mask.float()
+        # targets_ = targets[range(targets.shape[0])] * mask.long()
+        # print output_.shape
+        # print targets_.shape
+        hidden = repackage_hidden(hidden)
+        loss = torch.mean(criterion(output, targets) * mask)
+        total_loss = loss + loss_syn
+        total_loss.backward()
 
 
-            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-            optimizer.step()
-            # for p in model.parameters():
-                # p.data.add_(-lr, p.grad.data)
-            total_loss_ += total_loss.item()
+        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+        optimizer.step()
+        # for p in model.parameters():
+            # p.data.add_(-lr, p.grad.data)
+        total_loss_ += total_loss.item()
 
-            if idx % args.log_interval == 0 and idx > 0:
-                cur_loss = total_loss_ / idx
-                elapsed = time.time() - start_time
-                print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | '
-                        'loss {:5.2f} | ppl {:8.2f}'.format(
-                    epoch, idx, len(train_iter), lr,
-                    elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
-                start_time = time.time()
+        if idx % args.log_interval == 0 and idx > 0:
+            cur_loss = total_loss_ / idx
+            elapsed = time.time() - start_time
+            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | '
+                    'loss {:5.2f} | ppl {:8.2f}'.format(
+                epoch, idx, len(train_iter), lr,
+                elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
+            start_time = time.time()
 
     print()
 

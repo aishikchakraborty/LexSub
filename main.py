@@ -22,6 +22,8 @@ parser.add_argument('--emsize', type=int, default=200,
                     help='size of word embeddings')
 parser.add_argument('--nhid', type=int, default=200,
                     help='number of hidden units per layer')
+parser.add_argument('--margin', type=int, default=1,
+                    help='define the margin for the max-margin loss')
 parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
 parser.add_argument('--lr', type=float, default=0.001,
@@ -167,15 +169,20 @@ def evaluate(data_source):
             if batch.batch_size < args.batch_size:
                 continue
 
-            data = batch.text
+            data, synonyms, antonyms = batch.text, batch.synonyms, batch.antonyms
+
             targets = get_targets(data)
             data = data.transpose(0,1)
             targets = targets.view(-1)
             mask = 1 - (targets == pad_idx).float()
-            output, hidden = model(data, hidden)
+            # output, hidden = model(data, hidden)
+            output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
+
+            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=2))
+            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=2)))
+
             hidden = repackage_hidden(hidden)
             total_loss += torch.mean(criterion(output.view(-1, ntokens), targets) * mask).item()
-
     return total_loss / (len(data_source) - 1)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -200,6 +207,7 @@ def train():
         output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
 
         loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=2))
+        loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=2)))
 
         output = output.view(-1, ntokens)
         # output_ = output_[range(output_.shape[0]), targets] * mask.float()
@@ -208,7 +216,7 @@ def train():
         # print targets_.shape
         hidden = repackage_hidden(hidden)
         loss = torch.mean(criterion(output, targets) * mask)
-        total_loss = loss + loss_syn
+        total_loss = loss + loss_syn + loss_ant
         total_loss.backward()
 
 
@@ -217,7 +225,7 @@ def train():
         optimizer.step()
         # for p in model.parameters():
             # p.data.add_(-lr, p.grad.data)
-        total_loss_ += total_loss.item()
+        total_loss_ += loss.item()
 
         if idx % args.log_interval == 0 and idx > 0:
             cur_loss = total_loss_ / idx

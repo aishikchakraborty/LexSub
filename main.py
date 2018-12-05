@@ -133,8 +133,9 @@ best_val_loss = None
 
 
 def get_targets(text):
-    pad_data = text.new_ones((text.size(0), 1))*pad_idx
-    return torch.cat((text[:, 1:], pad_data), dim=1)
+    batch_size = text.size(1)
+    pad_data = text.new_ones((1, batch_size))*pad_idx
+    return torch.cat((text[1:, :], pad_data), dim=0)
 
 def repackage_hidden(h):
     """Wraps hidden states in new Tensors, to detach them from their history."""
@@ -171,8 +172,8 @@ def evaluate(data_source):
 
             data, synonyms, antonyms = batch.text, batch.synonyms, batch.antonyms
 
-            targets = get_targets(data)
             data = data.transpose(0,1)
+            targets = get_targets(data)
             targets = targets.view(-1)
             mask = 1 - (targets == pad_idx).float()
             # output, hidden = model(data, hidden)
@@ -195,9 +196,8 @@ def train():
     hidden = model.init_hidden(args.batch_size)
     for idx, batch in enumerate(train_iter):
         data, synonyms, antonyms = batch.text, batch.synonyms, batch.antonyms
-        targets = get_targets(data)
-
         data = data.transpose(1,0)
+        targets = get_targets(data)
         targets = targets.view(-1)
 
         mask = 1 - (targets == pad_idx).float()
@@ -230,13 +230,14 @@ def train():
         total_loss_ += loss.item()
 
         if idx % args.log_interval == 0 and idx > 0:
-            cur_loss = total_loss_ / idx
+            cur_loss = total_loss_ / args.log_interval
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
                 epoch, idx, len(train_iter), lr,
                 elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
             start_time = time.time()
+            total_loss_ = 0
 
     print()
 

@@ -56,34 +56,29 @@ def create_corpus(in_path, out_path):
             # words = line.split()
             # words = words + ['<eos>']
             # words = ' '.join(words)
-            sent = line.split('.')
+            words = line.split('.')
 
-            for words_ in sent:
-                words = words_.split()
-                # use simple nltk pos tagger for now
-                pos_tags = nltk.pos_tag(words)
 
-                # for i in range(0, len(words) - args.bptt + 1):
-                    # window = words[i:i+args.bptt]
-                    # for j, w in enumerate(window):
-                for i, w in enumerate(words):
-                        # consider only adjectives for synonyms and antonyms
-                    if pos_tags[i][1] == 'JJ':
-                        for syn in wordnet.synsets(w):
-                            for lemma in syn.lemmas():
-                                name = lemma.name()
-                                if name in word2idx:
-                                    synonyms.add((w, name))
-                            for ant in lemma.antonyms():
-                                    name = ant.name()
-                                    if name in word2idx:
-                                        antonyms.add((w, name))
+            # for i in range(0, len(words) - args.bptt + 1):
+                # window = words[i:i+args.bptt]
+                # for j, w in enumerate(window):
+            for i, w in enumerate(words):
+                # consider only adjectives for synonyms and antonyms
+                for syn in wordnet.synsets(w):
+                    for lemma in syn.lemmas():
+                        name = lemma.name()
+                        if name in word2idx:
+                            synonyms.add((w, name))
+                    for ant in lemma.antonyms():
+                            name = ant.name()
+                            if name in word2idx:
+                                antonyms.add((w, name))
 
-                word_str = ' '.join(words)
-                synonym_str = ' '.join([','.join(syn) for syn in synonyms])
-                antonym_str = ' '.join([','.join(ant) for ant in antonyms])
-                f1.write('{}\n'.format('\t'.join([word_str, synonym_str, antonym_str])))
-                f1.flush()
+            word_str = ' '.join(words)
+            synonym_str = ' '.join([','.join(syn) for syn in synonyms])
+            antonym_str = ' '.join([','.join(ant) for ant in antonyms])
+            f1.write('{}\n'.format('\t'.join([word_str, synonym_str, antonym_str])))
+            f1.flush()
 
 create_vocab(os.path.join(args.data, 'train.txt'))
 # create_vocab(os.path.join(args.data, 'test.txt'))

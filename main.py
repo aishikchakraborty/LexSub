@@ -182,10 +182,11 @@ def evaluate(data_source):
             loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=2)))
 
             hidden = repackage_hidden(hidden)
-            total_loss += torch.mean(criterion(output.view(-1, ntokens), targets) * mask).item()
+            total_loss += (torch.sum(criterion(output.view(-1, ntokens), targets) * mask)/torch.sum(mask)).item()
     return total_loss / (len(data_source) - 1)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+# optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 def train():
     # Turn on training mode which enables dropout.
     model.train()
@@ -205,6 +206,7 @@ def train():
         # output, hidden = model(data, hidden)
         # print(antonyms.shape)
         output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
+        # output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, _ = model(data, hidden, synonyms, antonyms)
 
         loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=2))
         loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=2)))
@@ -215,8 +217,8 @@ def train():
         # print output_.shape
         # print targets_.shape
         hidden = repackage_hidden(hidden)
-        loss = torch.mean(criterion(output, targets) * mask)
-        total_loss = loss + loss_syn + loss_ant
+        loss = torch.sum(criterion(output, targets) * mask)/torch.sum(mask)
+        total_loss = loss # + loss_syn + loss_ant
         total_loss.backward()
 
 

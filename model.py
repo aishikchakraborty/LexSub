@@ -43,11 +43,11 @@ class RNNWordnetModel(nn.Module):
 
     def forward(self, input, hidden, synonym, antonym):
         emb = self.drop(self.encoder(input))
-        emb_syn1 = self.encoder(synonym[:, :, 0])
-        emb_syn2 = self.encoder(synonym[:, :, 1])
+        emb_syn1 = self.encoder(synonym[:, 0])
+        emb_syn2 = self.encoder(synonym[:, 1])
 
-        emb_ant1 = self.encoder(antonym[:, :, 0])
-        emb_ant2 = self.encoder(antonym[:, :, 1])
+        emb_ant1 = self.encoder(antonym[:, 0])
+        emb_ant2 = self.encoder(antonym[:, 1])
 
 
         output, hidden = self.rnn(emb, hidden)

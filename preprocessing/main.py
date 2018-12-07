@@ -1,10 +1,12 @@
 # coding: utf-8
 import argparse
+import json
 import time
 import math
 import os
 import nltk
 from nltk.corpus import wordnet
+from random import shuffle
 import codecs
 import string
 
@@ -15,6 +17,8 @@ parser.add_argument('--out-dir', type=str, default='../data/wikitext-2/annotated
                     help='location of the output directory')
 parser.add_argument('--bptt', type=int, default=35,
                     help='bptt length')
+parser.add_argument('--batch-size', type=int, default=20,
+                    help='Batch size')
 parser.add_argument('--max-pair', type=int, default=35,
                     help='max no of synonyms')
 
@@ -46,39 +50,69 @@ def create_vocab(in_path):
 def create_corpus(in_path, out_path):
     f1 = codecs.open(out_path, 'w', encoding="utf-8")
     with codecs.open(in_path, 'r', encoding="utf8") as f:
+        tokens = []
         for line in f:
-            synonyms = set([])
-            antonyms = set([])
-            line = remove_non_ascii(line.strip())
+            words = line.split()
+            words = words + ['<eos>']
+            tokens.extend(words)
 
-            if not line:
-                continue
-            # words = line.split()
-            # words = words + ['<eos>']
-            # words = ' '.join(words)
-            words = line.split('.')
+        num_batches = math.ceil(len(tokens)/args.batch_size)
 
+        batched_input = []
+        for batch in range(0, len(tokens), num_batches):
+            batched_input.append(tokens[batch:batch + num_batches])
 
-            # for i in range(0, len(words) - args.bptt + 1):
-                # window = words[i:i+args.bptt]
-                # for j, w in enumerate(window):
-            for i, w in enumerate(words):
-                # consider only adjectives for synonyms and antonyms
-                for syn in wordnet.synsets(w):
-                    for lemma in syn.lemmas():
-                        name = lemma.name()
-                        if name in word2idx:
-                            synonyms.add((w, name))
-                    for ant in lemma.antonyms():
-                            name = ant.name()
+        for i in range(0, num_batches, args.bptt):
+            seq_len = min(args.bptt, num_batches - i - 1)
+
+            for k in range(args.batch_size):
+                synonyms = set([])
+                antonyms = set([])
+                text = batched_input[k][i:i+seq_len]
+                target = batched_input[k][i+1:i+1+seq_len]
+
+                # use simple nltk pos tagger for now
+                pos_tags = nltk.pos_tag(text)
+                for j, w in enumerate(text):
+                    # consider only adjectives for synonyms and antonyms
+                    for syn in wordnet.synsets(w):
+                        for lemma in syn.lemmas():
+                            name = lemma.name()
+
+                            if name == w:
+                                continue
+
+                            tup = (w, name)
                             if name in word2idx:
-                                antonyms.add((w, name))
 
-            word_str = ' '.join(words)
-            synonym_str = ' '.join([','.join(syn) for syn in synonyms])
-            antonym_str = ' '.join([','.join(ant) for ant in antonyms])
-            f1.write('{}\n'.format('\t'.join([word_str, synonym_str, antonym_str])))
-            f1.flush()
+                                synonyms.add(tup)
+
+                            for ant in lemma.antonyms():
+                                name = ant.name()
+                                tup = (w, name)
+                                if name in word2idx:
+
+                                    antonyms.add(tup)
+
+                synonyms = list(synonyms)
+                antonyms = list(antonyms)
+                shuffle(synonyms)
+                shuffle(antonyms)
+
+                text_str = ' '.join(text)
+                target_str = ' '.join(target)
+
+                synonym_str = ' '.join([','.join(syn) for syn in synonyms[:args.max_pair]])
+                antonym_str = ' '.join([','.join(ant) for ant in antonyms[:args.max_pair]])
+
+                output = {
+                            'text': text_str,
+                            'target': target_str,
+                            'synonyms': synonym_str,
+                            'antonyms': antonym_str
+                         }
+                f1.write('%s\n' % json.dumps(output))
+                f1.flush()
 
 create_vocab(os.path.join(args.data, 'train.txt'))
 # create_vocab(os.path.join(args.data, 'test.txt'))

@@ -7,12 +7,19 @@ import numpy as np
 import time
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.onnx
 import _pickle as pickle
 
 import model
 
+import csv
+csv.field_size_limit(100000000)
+
 from torchtext import data, datasets
+
+import csv
+csv.field_size_limit(100000000)
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='./data/wikitext-2',
@@ -35,7 +42,7 @@ parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
 parser.add_argument('--epochs', type=int, default=40,
                     help='upper epoch limit')
-parser.add_argument('--batch-size', type=int, default=3, metavar='N',
+parser.add_argument('--batch-size', type=int, default=20, metavar='N',
                     help='batch size')
 parser.add_argument('--bptt', type=int, default=35,
                     help='sequence length')
@@ -65,7 +72,7 @@ device = torch.device("cuda" if args.cuda else "cpu")
 
 class Dataset(data.TabularDataset):
     def __init__(self, dataset, fields):
-       super(Dataset, self).__init__(dataset, 'tsv', fields=fields)
+       super(Dataset, self).__init__(dataset, 'json', fields=fields)
 
     @classmethod
     def splits(cls, fields, dataset_dir=None, train_file=None, valid_file=None, test_file=None, **kwargs):
@@ -87,13 +94,14 @@ class Dataset(data.TabularDataset):
                 return ['<pad>', '<pad>']
             return [x.split(',') for x in prop_list]
 
-        TEXT_FIELD = data.Field(batch_first=True, include_lengths=False, eos_token='EOS', init_token='SOS')
+        TEXT_FIELD = data.Field(batch_first=False, include_lengths=False)
         WORDNET_TEXT_FIELD = data.Field(fix_length=2)
-        fields = [
-                ('text', TEXT_FIELD),
-                ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
-                ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
-                ]
+        field_dict = {
+                'text': ('text', TEXT_FIELD),
+                'target': ('target', TEXT_FIELD),
+                'synonyms': ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
+                }
 
         suffix = hashlib.md5('{}-{}-{}-{}-{}'.format(version, dataset_dir,
                                                      train_file, valid_file, test_file)
@@ -110,35 +118,35 @@ class Dataset(data.TabularDataset):
                 save_iters = True
 
         if load_from_file:
-                dataset = cls.splits(fields, dataset_dir, train_file, valid_file, test_file, **kwargs)
+                dataset = cls.splits(field_dict, dataset_dir, train_file, valid_file, test_file, **kwargs)
                 if save_iters:
                     torch.save([d.examples for d in dataset], examples_path)
 
         if not load_from_file:
-            dataset = [data.Dataset(ex, fields) for ex in examples]
+            dataset = [data.Dataset(ex, field_dict.values()) for ex in examples]
 
         train, valid, test = dataset
         TEXT_FIELD.build_vocab(train)
         WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
 
-        train_iter, valid_iter, test_iter = data.BucketIterator.splits((train, valid, test),
-                                                    batch_size=batch_size, shuffle=True, repeat=False, sort=False,
-                                                    device=device, sort_key= lambda x : len(x.text))
+        train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
+                                                batch_size=batch_size, device=device,
+                                                shuffle=False, repeat=False, sort=False)
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
 
-train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir='./data/wikitext-2/annotated/', device=device)
+train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=args.data, device=device)
+
+# This is the default WikiText2 iterator from TorchText.
+# Using this to compare our iterator. Will delete later.
+# train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
+                                                             # device=device, root=args.data)
+# vocab = train_iter.dataset.fields['text'].vocab
 
 ntokens = len(vocab)
 pad_idx = vocab.stoi['<pad>']
 
 lr = args.lr
 best_val_loss = None
-
-
-def get_targets(text):
-    batch_size = text.size(1)
-    pad_data = text.new_ones((1, batch_size))*pad_idx
-    return torch.cat((text[1:, :], pad_data), dim=0)
 
 def repackage_hidden(h):
     """Wraps hidden states in new Tensors, to detach them from their history."""
@@ -151,39 +159,25 @@ def repackage_hidden(h):
 model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
 criterion = nn.CrossEntropyLoss(reduction='none')
 
-def get_batch(source, i):
-    seq_len = min(args.bptt, len(source) - 1 - i)
-    data = source[i:i+seq_len]
-    target = get_targets(data)
-    return data, target
-
 def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0.
+
     hidden = model.init_hidden(args.batch_size)
     start_time = time.time()
     with torch.no_grad():
         for i, batch in enumerate(data_source):
 
-            # As we use fixed size hidden, we might
-            # have to ignore the last batch as the
-            # items in this batch might be less than
-            # batch_size
-            if batch.batch_size < args.batch_size:
-                continue
 
-            data, synonyms, antonyms = batch.text, batch.synonyms, batch.antonyms
+            data, targets = batch.text, batch.target
+            synonyms, antonyms = batch.synonyms, batch.antonyms
 
-            data = data.transpose(0,1)
-            targets = get_targets(data)
             targets = targets.view(-1)
+
             mask = 1 - (targets == pad_idx).float()
             # output, hidden = model(data, hidden)
             output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
-
-            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=2))
-            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=2)))
 
             hidden = repackage_hidden(hidden)
             total_loss += (torch.sum(criterion(output.view(-1, ntokens), targets) * mask)/torch.sum(mask)).item()
@@ -191,6 +185,7 @@ def evaluate(data_source):
 
 # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, verbose=True, factor=0.25)
 def train():
     # Turn on training mode which enables dropout.
     model.train()
@@ -198,18 +193,18 @@ def train():
     start_time = time.time()
     hidden = model.init_hidden(args.batch_size)
     for idx, batch in enumerate(train_iter):
-        data, synonyms, antonyms = batch.text, batch.synonyms, batch.antonyms
-        data = data.transpose(1,0)
-        targets = get_targets(data)
+        data, targets = batch.text, batch.target
+        synonyms, antonyms = batch.synonyms, batch.antonyms
+        synonyms = synonyms.view(-1, 2)
+        antonyms = antonyms.view(-1, 2)
         targets = targets.view(-1)
 
         mask = 1 - (targets == pad_idx).float()
-        optimizer.zero_grad()
+        model.zero_grad()
+        # optimizer.zero_grad()
 
+        # output, hidden = model(data, hidden)
         output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
-
-        loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=2))
-        loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=2)))
 
         output = output.view(-1, ntokens)
 
@@ -218,13 +213,17 @@ def train():
         if args.mdl == 'Vanilla':
             total_loss = loss
         elif args.mdl == 'WN':
+            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
+            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))
             total_loss = loss + loss_syn + loss_ant
         total_loss.backward()
 
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-        optimizer.step()
+        # optimizer.step()
+        for p in model.parameters():
+            p.data.add_(-lr, p.grad.data)
 
         total_loss_ += loss.item()
 
@@ -259,6 +258,7 @@ try:
         else:
             # Anneal the learning rate if no improvement has been seen in the validation dataset.
             lr /= 4.0
+        scheduler.step(val_loss)
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')

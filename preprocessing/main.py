@@ -19,7 +19,7 @@ parser.add_argument('--bptt', type=int, default=35,
                     help='bptt length')
 parser.add_argument('--batch-size', type=int, default=20,
                     help='Batch size')
-parser.add_argument('--max-pair', type=int, default=35,
+parser.add_argument('--max-pair', type=int, default=100,
                     help='max no of synonyms')
 
 args = parser.parse_args()

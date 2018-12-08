@@ -17,6 +17,7 @@ class RNNWordnetModel(nn.Module):
                                  options are ['LSTM', 'GRU', 'RNN_TANH' or 'RNN_RELU']""")
             self.rnn = nn.RNN(ninp, nhid, nlayers, nonlinearity=nonlinearity, dropout=dropout)
         self.decoder = nn.Linear(nhid, ntoken)
+        self.wn_proj = nn.Linear(ninp, nhid)
 
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)
@@ -43,11 +44,11 @@ class RNNWordnetModel(nn.Module):
 
     def forward(self, input, hidden, synonym, antonym):
         emb = self.drop(self.encoder(input))
-        emb_syn1 = self.encoder(synonym[:, 0])
-        emb_syn2 = self.encoder(synonym[:, 1])
+        emb_syn1 = self.wn_proj(self.encoder(synonym[:, 0]))
+        emb_syn2 = self.wn_proj(self.encoder(synonym[:, 1]))
 
-        emb_ant1 = self.encoder(antonym[:, 0])
-        emb_ant2 = self.encoder(antonym[:, 1])
+        emb_ant1 =self.wn_proj(self.encoder(antonym[:, 0]))
+        emb_ant2 = self.wn_proj(self.encoder(antonym[:, 1]))
 
 
         output, hidden = self.rnn(emb, hidden)

@@ -15,11 +15,14 @@ parser.add_argument('--analogy-task', action='store_true',
                     help='get Google Analogy Task Results')
 parser.add_argument('--sim-task', action='store_true',
                     help='use similarity task')
+parser.add_argument('--output-dir', type=str, default='results/',
+                    help='use similarity task')
 args = parser.parse_args()
 
 class WordSimilarity():
-    def __init__(self):
+    def __init__(self, datasets):
         self.vocab = pickle.load(open('../vocab.pkl', 'rb'))
+        self.datasets = datasets
 
     def load_vocab(self):
         self.emb = pickle.load(open(args.emb, 'rb'))
@@ -29,37 +32,40 @@ class WordSimilarity():
         return dot/(v1.norm() * v2.norm())
 
     def load_similarity(self):
-        f = open('unsup_datasets/wordsim353_similarity.csv', 'r')
-        data_reader = csv.reader(f, delimiter=',')
-        missing_words = 0
-        correct_pred = 0
-        total_examples = 0
+        for d in self.datasets:
+            print('*'*89)
+            print(d)
+            f = open('unsup_datasets/' + d + '.csv', 'r')
+            data_reader = csv.reader(f, delimiter=',')
+            missing_words = 0
+            correct_pred = 0
+            total_examples = 0
 
-        gold_sim = []
-        pred_sim = []
-        for i, row in enumerate(data_reader):
-            all_present = True
-            if i == 0:
-                continue
-            w1, w2, sim = row[0], row[1], float(row[2])
-            gold_sim.append(sim)
-            if i%1000 == 0:
-                print('Processed ' + str(i+1) + ' test examples')
-            try:
-                w1 = self.emb[self.vocab.stoi[w1]]
-            except:
-                all_present = False
-                # w1 = self.sem_emb[self.['<unk>']].reshape(-1, 1)
-            try:
-                w2 = self.emb[self.vocab.stoi[w2]]
-            except:
-                all_present = False
-                # w2 = self.sem_emb[self.w2idx['<unk>']].reshape(-1, 1)
-            if all_present:
-                pred_sim.append(self.cossim(w1, w2).item())
-                total_examples += 1
-        print('Spearman: ' + str(spearmanr(gold_sim, pred_sim)[0]))
-        print('Pearson: ' + str(pearsonr(gold_sim, pred_sim)[0]))
+            gold_sim = []
+            pred_sim = []
+            for i, row in enumerate(data_reader):
+                all_present = True
+                if i == 0:
+                    continue
+                w1, w2, sim = row[0], row[1], float(row[2])
+                gold_sim.append(sim)
+                if i%1000 == 0:
+                    print('Processed ' + str(i+1) + ' test examples')
+                try:
+                    w1 = self.emb[self.vocab.stoi[w1]]
+                except:
+                    all_present = False
+                    # w1 = self.sem_emb[self.['<unk>']].reshape(-1, 1)
+                try:
+                    w2 = self.emb[self.vocab.stoi[w2]]
+                except:
+                    all_present = False
+                    # w2 = self.sem_emb[self.w2idx['<unk>']].reshape(-1, 1)
+                if all_present:
+                    pred_sim.append(self.cossim(w1, w2).item())
+                    total_examples += 1
+            print('Spearman: ' + str(spearmanr(gold_sim, pred_sim)[0]))
+            print('Pearson: ' + str(pearsonr(gold_sim, pred_sim)[0]))
 
 
 class AnalogyExperiment():
@@ -130,8 +136,8 @@ if args.analogy_task:
     ae = AnalogyExperiment()
     ae.load_vocab()
     ae.load_google_dataset()
-
-if args.sim_task:
-    ae = WordSimilarity()
+elif args.sim_task:
+    datasets = ['bakerverb143', 'men_dev', 'men_test', 'radinskymturk', 'semeval17task2_test', 'semeval17task2_trial', 'simlex999', 'simverb3500', 'wordsim353_relatedness', 'wordsim353_similarity', 'yangpowersverb130']
+    ae = WordSimilarity(datasets)
     ae.load_vocab()
     ae.load_similarity()

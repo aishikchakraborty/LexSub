@@ -185,7 +185,7 @@ def evaluate(data_source):
 
 # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 optimizer = torch.optim.SGD(model.parameters(), lr=lr)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, verbose=True, factor=0.25)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=0, verbose=True, factor=0.25)
 def train():
     # Turn on training mode which enables dropout.
     model.train()
@@ -200,8 +200,7 @@ def train():
         targets = targets.view(-1)
 
         mask = 1 - (targets == pad_idx).float()
-        model.zero_grad()
-        # optimizer.zero_grad()
+        optimizer.zero_grad()
 
         # output, hidden = model(data, hidden)
         output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
@@ -221,9 +220,7 @@ def train():
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-        # optimizer.step()
-        for p in model.parameters():
-            p.data.add_(-lr, p.grad.data)
+        optimizer.step()
 
         total_loss_ += loss.item()
 
@@ -232,7 +229,7 @@ def train():
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, idx, len(train_iter), lr,
+                epoch, idx, len(train_iter), optimizer.param_groups[0]['lr'],
                 elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
             start_time = time.time()
             total_loss_ = 0
@@ -255,9 +252,6 @@ try:
             with open(args.save, 'wb') as f:
                 torch.save(model, f)
             best_val_loss = val_loss
-        else:
-            # Anneal the learning rate if no improvement has been seen in the validation dataset.
-            lr /= 4.0
         scheduler.step(val_loss)
 except KeyboardInterrupt:
     print('-' * 89)

@@ -22,7 +22,7 @@ import csv
 csv.field_size_limit(100000000)
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
-parser.add_argument('--data', type=str, default='./data/wikitext-2',
+parser.add_argument('--data', type=str, default='./data/wikitext-2/annotated/',
                     help='location of the data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
@@ -144,6 +144,8 @@ train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=args.data, 
 
 ntokens = len(vocab)
 pad_idx = vocab.stoi['<pad>']
+pickle.dump(vocab, open('vocab.pkl', 'wb'))
+print('Vocab Saved')
 
 lr = args.lr
 best_val_loss = None

@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.onnx
 import _pickle as pickle
+from tqdm import tqdm
 
 import model
 
@@ -22,7 +23,7 @@ import csv
 csv.field_size_limit(100000000)
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
-parser.add_argument('--data', type=str, default='./data/wikitext-2/annotated/',
+parser.add_argument('--data', type=str, default='wikitext-2',
                     help='location of the data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
@@ -40,7 +41,7 @@ parser.add_argument('--lr', type=float, default=20.,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
-parser.add_argument('--epochs', type=int, default=40,
+parser.add_argument('--epochs', type=int, default=100,
                     help='upper epoch limit')
 parser.add_argument('--batch-size', type=int, default=20, metavar='N',
                     help='batch size')
@@ -56,7 +57,9 @@ parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
 parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                     help='report interval')
-parser.add_argument('--save', type=str, default='model.pt',
+parser.add_argument('--save', type=str, default='models/',
+                    help='path to save the final model')
+parser.add_argument('--save-emb', type=str, default='embeddings/',
                     help='path to save the final model')
 parser.add_argument('--onnx-export', type=str, default='',
                     help='path to export the final model in onnx format')
@@ -134,7 +137,7 @@ class Dataset(data.TabularDataset):
                                                 shuffle=False, repeat=False, sort=False)
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
 
-train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=args.data, device=device)
+train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated'), device=device)
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
@@ -144,7 +147,7 @@ train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=args.data, 
 
 ntokens = len(vocab)
 pad_idx = vocab.stoi['<pad>']
-pickle.dump(vocab, open('vocab.pkl', 'wb'))
+pickle.dump(vocab, open('vocab_' + str(args.data) + '.pkl', 'wb'))
 print('Vocab Saved')
 
 lr = args.lr
@@ -239,8 +242,10 @@ def train():
     print()
 
 
+model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.mdl + '.pt')
+emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '.pkl')
 try:
-    for epoch in range(1, args.epochs+1):
+    for epoch in tqdm(range(1, args.epochs+1)):
         epoch_start_time = time.time()
         train()
         val_loss = evaluate(valid_iter)
@@ -251,8 +256,11 @@ try:
         print('-' * 89)
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
-            with open(args.save, 'wb') as f:
-                torch.save(model, f)
+            with open(model_name, 'wb') as f:
+                torch.save(model_name, f)
+            print('Saving learnt embeddings ')
+            pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
+
             best_val_loss = val_loss
         scheduler.step(val_loss)
 except KeyboardInterrupt:
@@ -260,7 +268,7 @@ except KeyboardInterrupt:
     print('Exiting from training early')
 
 # Load the best saved model.
-with open(args.save, 'rb') as f:
+with open(model_name, 'rb') as f:
     model = torch.load(f)
     # after load the rnn params are not a continuous chunk of memory
     # this makes them a continuous chunk, and will speed up forward pass
@@ -274,7 +282,7 @@ print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
     test_loss, math.exp(test_loss)))
 print('=' * 89)
 print('Saving final learnt embeddings ')
-pickle.dump(model.encoder.weight.data, open('emb_' + str(args.mdl) + '.pkl', 'wb'))
+pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
 
 
 # if len(args.onnx_export) > 0:

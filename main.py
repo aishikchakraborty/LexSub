@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.onnx
 import _pickle as pickle
-from tqdm import tqdm
+# from tqdm import tqdm
 
 import model
 
@@ -55,6 +55,8 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
+parser.add_argument('--gpu', type=int, default=0,
+                    help='use gpu x')
 parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                     help='report interval')
 parser.add_argument('--save', type=str, default='models/',
@@ -71,7 +73,7 @@ if torch.cuda.is_available():
     if not args.cuda:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
-device = torch.device("cuda" if args.cuda else "cpu")
+device = torch.device("cuda:" + str(args.gpu) if args.cuda else "cpu")
 
 class Dataset(data.TabularDataset):
     def __init__(self, dataset, fields):
@@ -241,11 +243,11 @@ def train():
 
     print()
 
-
+patience = 0
 model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.mdl + '.pt')
 emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '.pkl')
 try:
-    for epoch in tqdm(range(1, args.epochs+1)):
+    for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         train()
         val_loss = evaluate(valid_iter)
@@ -257,12 +259,16 @@ try:
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
             with open(model_name, 'wb') as f:
-                torch.save(model_name, f)
+                torch.save(model, f)
             print('Saving learnt embeddings ')
             pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
 
             best_val_loss = val_loss
+        else:
+            patience += 1
         scheduler.step(val_loss)
+        if patience > 3:
+            break
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')

@@ -246,6 +246,7 @@ def train():
 patience = 0
 model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.mdl + '.pt')
 emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '.pkl')
+emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '.txt')
 try:
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
@@ -262,7 +263,7 @@ try:
                 torch.save(model, f)
             print('Saving learnt embeddings ')
             pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
-
+            
             best_val_loss = val_loss
         else:
             patience += 1
@@ -289,7 +290,11 @@ print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
 print('=' * 89)
 print('Saving final learnt embeddings ')
 pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
-
+with open(emb_name_txt, 'w') as f:
+    final_emb = model.encoder.weight.data.cpu().numpy()
+    for i in range(final_emb.shape[0]):
+        f.write(vocab.itos[i] + ' ')
+        f.write(' '.join([str(x) for x in final_emb[i, :]]) + '\n')
 
 # if len(args.onnx_export) > 0:
 #     # Export the model in ONNX format.

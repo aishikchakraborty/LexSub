@@ -192,7 +192,7 @@ def evaluate(data_source):
 
 # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 optimizer = torch.optim.SGD(model.parameters(), lr=lr)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=0, verbose=True, factor=0.25)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=1, verbose=True, factor=0.25)
 def train():
     # Turn on training mode which enables dropout.
     model.train()
@@ -263,8 +263,9 @@ try:
                 torch.save(model, f)
             print('Saving learnt embeddings ')
             pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
-            
+
             best_val_loss = val_loss
+            patience = 0
         else:
             patience += 1
         scheduler.step(val_loss)

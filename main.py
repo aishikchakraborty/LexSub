@@ -28,7 +28,7 @@ parser.add_argument('--data', type=str, default='wikitext-2',
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
 parser.add_argument('--mdl', type=str, default='Vanilla',
-                    help='type of model Vanilla | WN')
+                    help='type of model Vanilla | syn | hyp')
 parser.add_argument('--emsize', type=int, default=200,
                     help='size of word embeddings')
 parser.add_argument('--nhid', type=int, default=200,
@@ -37,7 +37,7 @@ parser.add_argument('--margin', type=int, default=1,
                     help='define the margin for the max-margin loss')
 parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
-parser.add_argument('--lr', type=float, default=20.,
+parser.add_argument('--lr', type=float, default=1e-3,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
@@ -105,7 +105,8 @@ class Dataset(data.TabularDataset):
                 'text': ('text', TEXT_FIELD),
                 'target': ('target', TEXT_FIELD),
                 'synonyms': ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
-                'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
+                'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
                 }
 
         suffix = hashlib.md5('{}-{}-{}-{}-{}'.format(version, dataset_dir,
@@ -178,21 +179,21 @@ def evaluate(data_source):
 
 
             data, targets = batch.text, batch.target
-            synonyms, antonyms = batch.synonyms, batch.antonyms
+            synonyms, antonyms, hypernyms = batch.synonyms, batch.antonyms, batch.hypernyms
 
             targets = targets.view(-1)
 
             mask = 1 - (targets == pad_idx).float()
             # output, hidden = model(data, hidden)
-            output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
+            output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, hidden = model(data, hidden, synonyms, antonyms, hypernyms)
 
             hidden = repackage_hidden(hidden)
             total_loss += (torch.sum(criterion(output.view(-1, ntokens), targets) * mask)/torch.sum(mask)).item()
     return total_loss / (len(data_source) - 1)
 
-# optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-optimizer = torch.optim.SGD(model.parameters(), lr=lr)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=1, verbose=True, factor=0.25)
+optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+# optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=0, verbose=True, factor=0.1)
 def train():
     # Turn on training mode which enables dropout.
     model.train()
@@ -201,16 +202,17 @@ def train():
     hidden = model.init_hidden(args.batch_size)
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target
-        synonyms, antonyms = batch.synonyms, batch.antonyms
+        synonyms, antonyms, hypernyms = batch.synonyms, batch.antonyms, batch.hypernyms
         synonyms = synonyms.view(-1, 2)
         antonyms = antonyms.view(-1, 2)
+        hypernyms = hypernyms.view(-1, 2)
         targets = targets.view(-1)
 
         mask = 1 - (targets == pad_idx).float()
         optimizer.zero_grad()
 
         # output, hidden = model(data, hidden)
-        output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden = model(data, hidden, synonyms, antonyms)
+        output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, hidden = model(data, hidden, synonyms, antonyms, hypernyms)
 
         output = output.view(-1, ntokens)
 
@@ -218,10 +220,16 @@ def train():
         loss = torch.sum(criterion(output, targets) * mask)/torch.sum(mask)
         if args.mdl == 'Vanilla':
             total_loss = loss
-        elif args.mdl == 'WN':
+        elif args.mdl == 'syn':
             loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
+            loss_hyp = torch.mean(torch.sum(torch.pow(emb_hyp1 - emb_hyp2, 2), dim=-1))
             loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))
             total_loss = loss + loss_syn + loss_ant
+        elif args.mdl == 'syn+hyp':
+            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
+            loss_hyp = torch.mean(torch.sum(torch.pow(emb_hyp1 - emb_hyp2, 2), dim=-1))
+            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))
+            total_loss = loss + loss_syn + loss_ant + loss_hyp
         total_loss.backward()
 
 

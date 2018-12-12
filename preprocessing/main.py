@@ -20,7 +20,7 @@ parser.add_argument('--bptt', type=int, default=35,
 parser.add_argument('--batch-size', type=int, default=20,
                     help='Batch size')
 parser.add_argument('--max-pair', type=int, default=100,
-                    help='max no of synonyms')
+                    help='max no of pairs of wordnet relations')
 
 args = parser.parse_args()
 word2idx = {}
@@ -68,6 +68,7 @@ def create_corpus(in_path, out_path):
             for k in range(args.batch_size):
                 synonyms = set([])
                 antonyms = set([])
+                hypernyms = set([])
                 text = batched_input[k][i:i+seq_len]
                 target = batched_input[k][i+1:i+1+seq_len]
 
@@ -84,7 +85,6 @@ def create_corpus(in_path, out_path):
 
                             tup = (w, name)
                             if name in word2idx:
-
                                 synonyms.add(tup)
 
                             for ant in lemma.antonyms():
@@ -93,25 +93,42 @@ def create_corpus(in_path, out_path):
                                 if name in word2idx:
 
                                     antonyms.add(tup)
+                    for syn in wordnet.synsets(w):
+                        
+                        hyp = syn.hypernyms()
+                        for h in hyp:
+                            for lemma in h.lemmas():
+                                name = lemma.name()
+
+                                if name == w:
+                                    continue
+
+                                tup = (w, name)
+                                if name in word2idx:
+                                    hypernyms.add(tup)
 
                 synonyms = list(synonyms)
                 antonyms = list(antonyms)
+                hypernyms = list(hypernyms)
                 shuffle(synonyms)
                 shuffle(antonyms)
+                shuffle(hypernyms)
 
                 text_str = ' '.join(text)
                 target_str = ' '.join(target)
 
                 synonym_str = ' '.join([','.join(syn) for syn in synonyms[:args.max_pair]])
                 antonym_str = ' '.join([','.join(ant) for ant in antonyms[:args.max_pair]])
+                hypernym_str = ' '.join([','.join(hyp) for hyp in hypernyms[:args.max_pair]])
 
                 output = {
                             'text': text_str,
                             'target': target_str,
                             'synonyms': synonym_str,
-                            'antonyms': antonym_str
+                            'antonyms': antonym_str,
+                            'hypernyms': hypernym_str
                          }
-                f1.write('%s\n' % json.dumps(output))
+                f1.write(str(json.dumps(output)) + '\n')
                 f1.flush()
 
 create_vocab(os.path.join(args.data, 'train.txt'))

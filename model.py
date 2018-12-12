@@ -19,6 +19,8 @@ class RNNWordnetModel(nn.Module):
         self.decoder = nn.Linear(nhid, ntoken)
         self.wn_proj = nn.Linear(ninp, nhid)
 
+        # self.hypernym_proj = nn.Linear(ninp, nhid)
+        self.inner_hyp_proj = nn.Linear(nhid, nhid)
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)
         # https://arxiv.org/abs/1608.05859
@@ -42,7 +44,7 @@ class RNNWordnetModel(nn.Module):
         self.decoder.bias.data.zero_()
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, input, hidden, synonym, antonym):
+    def forward(self, input, hidden, synonym, antonym, hypernym):
         emb = self.drop(self.encoder(input))
         emb_syn1 = self.wn_proj(self.encoder(synonym[:, 0]))
         emb_syn2 = self.wn_proj(self.encoder(synonym[:, 1]))
@@ -51,10 +53,15 @@ class RNNWordnetModel(nn.Module):
         emb_ant2 = self.wn_proj(self.encoder(antonym[:, 1]))
 
 
+        emb_hyp1 = self.wn_proj(self.encoder(hypernym[:, 0]))
+        emb_hyp2 = self.wn_proj(self.encoder(hypernym[:, 1]))
+
+        emb_hyp1 = self.inner_hyp_proj(emb_hyp1)
+
         output, hidden = self.rnn(emb, hidden)
         output = self.drop(output)
         decoded = self.decoder(output.view(output.size(0)*output.size(1), output.size(2)))
-        return decoded.view(output.size(0), output.size(1), decoded.size(1)), emb_syn1, emb_syn2, emb_ant1, emb_ant2, hidden
+        return decoded.view(output.size(0), output.size(1), decoded.size(1)), emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, hidden
 
     def init_hidden(self, bsz):
         weight = next(self.parameters())

@@ -37,7 +37,7 @@ parser.add_argument('--margin', type=int, default=1,
                     help='define the margin for the max-margin loss')
 parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
-parser.add_argument('--lr', type=float, default=1e-3,
+parser.add_argument('--lr', type=float, default=20.,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
@@ -191,8 +191,8 @@ def evaluate(data_source):
             total_loss += (torch.sum(criterion(output.view(-1, ntokens), targets) * mask)/torch.sum(mask)).item()
     return total_loss / (len(data_source) - 1)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-# optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+# optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=0, verbose=True, factor=0.1)
 def train():
     # Turn on training mode which enables dropout.

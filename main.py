@@ -37,7 +37,7 @@ parser.add_argument('--margin', type=int, default=1,
                     help='define the margin for the max-margin loss')
 parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
-parser.add_argument('--lr', type=float, default=20.,
+parser.add_argument('--lr', type=float, default=1e-3,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
@@ -171,7 +171,9 @@ def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0.
-
+    total_loss_syn = 0.
+    total_loss_ant = 0.
+    total_loss_hyp = 0.
     hidden = model.init_hidden(args.batch_size)
     start_time = time.time()
     with torch.no_grad():
@@ -186,14 +188,23 @@ def evaluate(data_source):
             mask = 1 - (targets == pad_idx).float()
             # output, hidden = model(data, hidden)
             output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, hidden = model(data, hidden, synonyms, antonyms, hypernyms)
+            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
+            loss_hyp = torch.mean(torch.sum(torch.pow(emb_hyp1 - emb_hyp2, 2), dim=-1))
+            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))
 
+            total_loss_syn += loss_syn
+            total_loss_ant += loss_ant
+            total_loss_hyp += loss_hyp
             hidden = repackage_hidden(hidden)
             total_loss += (torch.sum(criterion(output.view(-1, ntokens), targets) * mask)/torch.sum(mask)).item()
+    # print(total_loss_syn / (len(data_source) - 1))
+    # print(total_loss_ant/ (len(data_source) - 1))
+    # print(total_loss_hyp/ (len(data_source) - 1))
     return total_loss / (len(data_source) - 1)
 
-# optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-optimizer = torch.optim.SGD(model.parameters(), lr=lr)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=0, verbose=True, factor=0.1)
+optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+# optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=0, verbose=True, factor=0.25)
 def train():
     # Turn on training mode which enables dropout.
     model.train()
@@ -220,7 +231,7 @@ def train():
         loss = torch.sum(criterion(output, targets) * mask)/torch.sum(mask)
         if args.mdl == 'Vanilla':
             total_loss = loss
-        elif args.mdl == 'syn':
+        elif args.mdl == 'WN':
             loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
             loss_hyp = torch.mean(torch.sum(torch.pow(emb_hyp1 - emb_hyp2, 2), dim=-1))
             loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))

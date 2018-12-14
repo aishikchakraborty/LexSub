@@ -19,7 +19,7 @@ class RNNWordnetModel(nn.Module):
         self.decoder = nn.Linear(nhid, ntoken)
         self.wn_proj = nn.Linear(ninp, nhid)
 
-        # self.hypernym_proj = nn.Linear(ninp, nhid)
+        self.hypernym_proj = nn.Linear(ninp, nhid)
         self.inner_hyp_proj = nn.Linear(nhid, nhid)
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)

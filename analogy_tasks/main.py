@@ -15,13 +15,11 @@ parser.add_argument('--analogy-task', action='store_true',
                     help='get Google Analogy Task Results')
 parser.add_argument('--sim-task', action='store_true',
                     help='use similarity task')
-parser.add_argument('--output-dir', type=str, default='results/',
-                    help='use similarity task')
 args = parser.parse_args()
 
 class WordSimilarity():
     def __init__(self, datasets):
-        self.vocab = pickle.load(open('../vocab.pkl', 'rb'))
+        self.vocab = pickle.load(open('../vocab_wikitext-2.pkl', 'rb'))
         self.datasets = datasets
 
     def load_vocab(self):

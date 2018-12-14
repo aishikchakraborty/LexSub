@@ -3,36 +3,47 @@ import argparse
 import hashlib
 import math
 import os
+import numpy as np
 import time
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.onnx
-
-# This should no longer be needed.
-import data as d
+import _pickle as pickle
+# from tqdm import tqdm
 
 import model
 
+import csv
+csv.field_size_limit(100000000)
+
 from torchtext import data, datasets
 
+import csv
+csv.field_size_limit(100000000)
+
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
-parser.add_argument('--data', type=str, default='./data/wikitext-2',
+parser.add_argument('--data', type=str, default='wikitext-2',
                     help='location of the data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
+parser.add_argument('--mdl', type=str, default='Vanilla',
+                    help='type of model Vanilla | syn | hyp')
 parser.add_argument('--emsize', type=int, default=200,
                     help='size of word embeddings')
 parser.add_argument('--nhid', type=int, default=200,
                     help='number of hidden units per layer')
+parser.add_argument('--margin', type=int, default=1,
+                    help='define the margin for the max-margin loss')
 parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
-parser.add_argument('--lr', type=float, default=20,
+parser.add_argument('--lr', type=float, default=1e-3,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
-parser.add_argument('--epochs', type=int, default=40,
+parser.add_argument('--epochs', type=int, default=100,
                     help='upper epoch limit')
-parser.add_argument('--batch_size', type=int, default=20, metavar='N',
+parser.add_argument('--batch-size', type=int, default=20, metavar='N',
                     help='batch size')
 parser.add_argument('--bptt', type=int, default=35,
                     help='sequence length')
@@ -44,9 +55,13 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
+parser.add_argument('--gpu', type=int, default=0,
+                    help='use gpu x')
 parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                     help='report interval')
-parser.add_argument('--save', type=str, default='model.pt',
+parser.add_argument('--save', type=str, default='models/',
+                    help='path to save the final model')
+parser.add_argument('--save-emb', type=str, default='embeddings/',
                     help='path to save the final model')
 parser.add_argument('--onnx-export', type=str, default='',
                     help='path to export the final model in onnx format')
@@ -58,11 +73,11 @@ if torch.cuda.is_available():
     if not args.cuda:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
-device = torch.device("cuda" if args.cuda else "cpu")
+device = torch.device("cuda:" + str(args.gpu) if args.cuda else "cpu")
 
 class Dataset(data.TabularDataset):
     def __init__(self, dataset, fields):
-       super(Dataset, self).__init__(dataset, 'tsv', fields=fields)
+       super(Dataset, self).__init__(dataset, 'json', fields=fields)
 
     @classmethod
     def splits(cls, fields, dataset_dir=None, train_file=None, valid_file=None, test_file=None, **kwargs):
@@ -77,17 +92,22 @@ class Dataset(data.TabularDataset):
 
     @classmethod
     def iters(cls, dataset_dir=None, train_file=None, valid_file=None, test_file=None,
-                gpu=-1, batch_size=256, load_from_file=False, version=1, **kwargs):
+                device=-1, batch_size=args.batch_size, load_from_file=False, version=1, **kwargs):
 
         def preprocessing(prop_list):
+            if len(prop_list) == 0:
+                return ['<pad>', '<pad>']
             return [x.split(',') for x in prop_list]
 
-        TEXT_FIELD = data.Field(batch_first=True)
-        fields = [
-                ('text', TEXT_FIELD),
-                ('synonyms', data.NestedField(TEXT_FIELD, preprocessing=preprocessing)),
-                ('antonyms', data.NestedField(TEXT_FIELD, preprocessing=preprocessing))
-                ]
+        TEXT_FIELD = data.Field(batch_first=False, include_lengths=False)
+        WORDNET_TEXT_FIELD = data.Field(fix_length=2)
+        field_dict = {
+                'text': ('text', TEXT_FIELD),
+                'target': ('target', TEXT_FIELD),
+                'synonyms': ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
+                }
 
         suffix = hashlib.md5('{}-{}-{}-{}-{}'.format(version, dataset_dir,
                                                      train_file, valid_file, test_file)
@@ -104,77 +124,37 @@ class Dataset(data.TabularDataset):
                 save_iters = True
 
         if load_from_file:
-                dataset = cls.splits(fields, dataset_dir, train_file, valid_file, test_file, **kwargs)
+                dataset = cls.splits(field_dict, dataset_dir, train_file, valid_file, test_file, **kwargs)
                 if save_iters:
                     torch.save([d.examples for d in dataset], examples_path)
 
         if not load_from_file:
-            dataset = [data.Dataset(ex, fields) for ex in examples]
+            dataset = [data.Dataset(ex, field_dict.values()) for ex in examples]
 
         train, valid, test = dataset
         TEXT_FIELD.build_vocab(train)
-        train_iter, valid_iter, test_iter = data.BucketIterator.splits((train, valid, test), 
-                                                    batch_size=batch_size, shuffle=True, repeat=False, sort=False, 
-                                                    device=gpu, sort_key= lambda x : len(x.context))
+        WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
+
+        train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
+                                                batch_size=batch_size, device=device,
+                                                shuffle=False, repeat=False, sort=False)
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
 
-train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir='./data/annotated_2/')
+train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated'), device=device)
+
+# This is the default WikiText2 iterator from TorchText.
+# Using this to compare our iterator. Will delete later.
+# train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
+                                                             # device=device, root=args.data)
+# vocab = train_iter.dataset.fields['text'].vocab
 
 ntokens = len(vocab)
-# How to use these iters.
-for batch in train_iter:
-    # (batch_size, seq_lens) 
-    text_idxs = batch.text
-    # (batch_size, max_num_synonyms, 2)
-    synonyms = batch.synonyms
-    # (batch_size, max_num_antonyms, 2)
-    antonyms = batch.antonyms
+pad_idx = vocab.stoi['<pad>']
+pickle.dump(vocab, open('vocab_' + str(args.data) + '.pkl', 'wb'))
+print('Vocab Saved')
 
-# TODO: Following portion of code should be deleted.
-###############################################################################
-# Load data
-###############################################################################
-
-corpus = d.Corpus(args.data)
-
-# Starting from sequential data, batchify arranges the dataset into columns.
-# For instance, with the alphabet as the sequence and batch size 4, we'd get
-# ┌ a g m s ┐
-# │ b h n t │
-# │ c i o u │
-# │ d j p v │
-# │ e k q w │
-# └ f l r x ┘.
-# These columns are treated as independent by the model, which means that the
-# dependence of e. g. 'g' on 'f' can not be learned, but allows more efficient
-# batch processing.
-
-def batchify(data, bsz):
-    # Work out how cleanly we can divide the dataset into bsz parts.
-    nbatch = data.size(0) // bsz
-    # Trim off any extra elements that wouldn't cleanly fit (remainders).
-    data = data.narrow(0, 0, nbatch * bsz)
-    # Evenly divide the data across the bsz batches.
-    data = data.view(bsz, -1).t().contiguous()
-    return data.to(device)
-
-eval_batch_size = 10
-train_data = batchify(corpus.train, args.batch_size)
-val_data = batchify(corpus.valid, eval_batch_size)
-test_data = batchify(corpus.test, eval_batch_size)
-
-###############################################################################
-# Build the model
-###############################################################################
-
-ntokens = len(corpus.dictionary)
-model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
-
-criterion = nn.CrossEntropyLoss()
-
-###############################################################################
-# Training code
-###############################################################################
+lr = args.lr
+best_val_loss = None
 
 def repackage_hidden(h):
     """Wraps hidden states in new Tensors, to detach them from their history."""
@@ -183,94 +163,114 @@ def repackage_hidden(h):
     else:
         return tuple(repackage_hidden(v) for v in h)
 
-
-# get_batch subdivides the source data into chunks of length args.bptt.
-# If source is equal to the example output of the batchify function, with
-# a bptt-limit of 2, we'd get the following two Variables for i = 0:
-# ┌ a g m s ┐ ┌ b h n t ┐
-# └ b h n t ┘ └ c i o u ┘
-# Note that despite the name of the function, the subdivison of data is not
-# done along the batch dimension (i.e. dimension 1), since that was handled
-# by the batchify function. The chunks are along dimension 0, corresponding
-# to the seq_len dimension in the LSTM.
-
-def get_batch(source, i):
-    seq_len = min(args.bptt, len(source) - 1 - i)
-    data = source[i:i+seq_len]
-    target = source[i+1:i+1+seq_len].view(-1)
-    return data, target
-
+# model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
+model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
+criterion = nn.CrossEntropyLoss(reduction='none')
 
 def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0.
-    ntokens = len(corpus.dictionary)
-    hidden = model.init_hidden(eval_batch_size)
+    total_loss_syn = 0.
+    total_loss_ant = 0.
+    total_loss_hyp = 0.
+    hidden = model.init_hidden(args.batch_size)
+    start_time = time.time()
     with torch.no_grad():
-        for i in range(0, data_source.size(0) - 1, args.bptt):
-            data, targets = get_batch(data_source, i)
-            output, hidden = model(data, hidden)
-            output_flat = output.view(-1, ntokens)
-            total_loss += len(data) * criterion(output_flat, targets).item()
+        for i, batch in enumerate(data_source):
+
+
+            data, targets = batch.text, batch.target
+            synonyms, antonyms, hypernyms = batch.synonyms, batch.antonyms, batch.hypernyms
+
+            targets = targets.view(-1)
+
+            mask = 1 - (targets == pad_idx).float()
+            # output, hidden = model(data, hidden)
+            output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, hidden = model(data, hidden, synonyms, antonyms, hypernyms)
+            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
+            loss_hyp = torch.mean(torch.sum(torch.pow(emb_hyp1 - emb_hyp2, 2), dim=-1))
+            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))
+
+            total_loss_syn += loss_syn
+            total_loss_ant += loss_ant
+            total_loss_hyp += loss_hyp
             hidden = repackage_hidden(hidden)
+            total_loss += (torch.sum(criterion(output.view(-1, ntokens), targets) * mask)/torch.sum(mask)).item()
+    # print(total_loss_syn / (len(data_source) - 1))
+    # print(total_loss_ant/ (len(data_source) - 1))
+    # print(total_loss_hyp/ (len(data_source) - 1))
     return total_loss / (len(data_source) - 1)
 
-
+optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+# optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=0, verbose=True, factor=0.25)
 def train():
     # Turn on training mode which enables dropout.
     model.train()
-    total_loss = 0.
+    total_loss_ = 0.
     start_time = time.time()
-    ntokens = len(corpus.dictionary)
     hidden = model.init_hidden(args.batch_size)
-    for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
-        data, targets = get_batch(train_data, i)
-        # Starting each batch, we detach the hidden state from how it was previously produced.
-        # If we didn't, the model would try backpropagating all the way to start of the dataset.
+    for idx, batch in enumerate(train_iter):
+        data, targets = batch.text, batch.target
+        synonyms, antonyms, hypernyms = batch.synonyms, batch.antonyms, batch.hypernyms
+        synonyms = synonyms.view(-1, 2)
+        antonyms = antonyms.view(-1, 2)
+        hypernyms = hypernyms.view(-1, 2)
+        targets = targets.view(-1)
+
+        mask = 1 - (targets == pad_idx).float()
+        optimizer.zero_grad()
+
+        # output, hidden = model(data, hidden)
+        output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, hidden = model(data, hidden, synonyms, antonyms, hypernyms)
+
+        output = output.view(-1, ntokens)
+
         hidden = repackage_hidden(hidden)
-        model.zero_grad()
-        output, hidden = model(data, hidden)
-        loss = criterion(output.view(-1, ntokens), targets)
-        loss.backward()
+        loss = torch.sum(criterion(output, targets) * mask)/torch.sum(mask)
+        if args.mdl == 'Vanilla':
+            total_loss = loss
+        elif args.mdl == 'WN':
+            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
+            loss_hyp = torch.mean(torch.sum(torch.pow(emb_hyp1 - emb_hyp2, 2), dim=-1))
+            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))
+            total_loss = loss + loss_syn + loss_ant
+        elif args.mdl == 'syn+hyp':
+            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
+            loss_hyp = torch.mean(torch.sum(torch.pow(emb_hyp1 - emb_hyp2, 2), dim=-1))
+            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))
+            total_loss = loss + loss_syn + loss_ant + loss_hyp
+        total_loss.backward()
+
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-        for p in model.parameters():
-            p.data.add_(-lr, p.grad.data)
+        optimizer.step()
 
-        total_loss += loss.item()
+        total_loss_ += loss.item()
 
-        if batch % args.log_interval == 0 and batch > 0:
-            cur_loss = total_loss / args.log_interval
+        if idx % args.log_interval == 0 and idx > 0:
+            cur_loss = total_loss_ / args.log_interval
             elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
+            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, batch, len(train_data) // args.bptt, lr,
+                epoch, idx, len(train_iter), optimizer.param_groups[0]['lr'],
                 elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
-            total_loss = 0
             start_time = time.time()
+            total_loss_ = 0
 
+    print()
 
-def export_onnx(path, batch_size, seq_len):
-    print('The model is also exported in ONNX format at {}'.
-          format(os.path.realpath(args.onnx_export)))
-    model.eval()
-    dummy_input = torch.LongTensor(seq_len * batch_size).zero_().view(-1, batch_size).to(device)
-    hidden = model.init_hidden(batch_size)
-    torch.onnx.export(model, (dummy_input, hidden), path)
-
-
-# Loop over epochs.
-lr = args.lr
-best_val_loss = None
-
-# At any point you can hit Ctrl + C to break out of training early.
+patience = 0
+model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.mdl + '.pt')
+emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '.pkl')
+emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '.txt')
 try:
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         train()
-        val_loss = evaluate(val_data)
+        val_loss = evaluate(valid_iter)
         print('-' * 89)
         print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                 'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
@@ -278,30 +278,44 @@ try:
         print('-' * 89)
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
-            with open(args.save, 'wb') as f:
+            with open(model_name, 'wb') as f:
                 torch.save(model, f)
+            print('Saving learnt embeddings ')
+            pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
+
             best_val_loss = val_loss
+            patience = 0
         else:
-            # Anneal the learning rate if no improvement has been seen in the validation dataset.
-            lr /= 4.0
+            patience += 1
+        scheduler.step(val_loss)
+        if patience > 3:
+            break
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')
 
 # Load the best saved model.
-with open(args.save, 'rb') as f:
+with open(model_name, 'rb') as f:
     model = torch.load(f)
     # after load the rnn params are not a continuous chunk of memory
     # this makes them a continuous chunk, and will speed up forward pass
     model.rnn.flatten_parameters()
 
+
 # Run on test data.
-test_loss = evaluate(test_data)
+test_loss = evaluate(test_iter)
 print('=' * 89)
 print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
     test_loss, math.exp(test_loss)))
 print('=' * 89)
+print('Saving final learnt embeddings ')
+pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
+with open(emb_name_txt, 'w') as f:
+    final_emb = model.encoder.weight.data.cpu().numpy()
+    for i in range(final_emb.shape[0]):
+        f.write(vocab.itos[i] + ' ')
+        f.write(' '.join([str(x) for x in final_emb[i, :]]) + '\n')
 
-if len(args.onnx_export) > 0:
-    # Export the model in ONNX format.
-    export_onnx(args.onnx_export, batch_size=1, seq_len=args.bptt)
+# if len(args.onnx_export) > 0:
+#     # Export the model in ONNX format.
+#     export_onnx(args.onnx_export, batch_size=1, seq_len=args.bptt)

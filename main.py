@@ -31,8 +31,10 @@ parser.add_argument('--mdl', type=str, default='Vanilla',
                     help='type of model Vanilla | syn | hyp')
 parser.add_argument('--emsize', type=int, default=200,
                     help='size of word embeddings')
-parser.add_argument('--nhid', type=int, default=200,
+parser.add_argument('--nhid', type=int, default=300,
                     help='number of hidden units per layer')
+parser.add_argument('--wn_hid', type=int, default=100,
+                    help='Dimension of the WN subspace')
 parser.add_argument('--margin', type=int, default=1,
                     help='define the margin for the max-margin loss')
 parser.add_argument('--nlayers', type=int, default=2,
@@ -65,6 +67,8 @@ parser.add_argument('--save-emb', type=str, default='embeddings/',
                     help='path to save the final model')
 parser.add_argument('--onnx-export', type=str, default='',
                     help='path to export the final model in onnx format')
+parser.add_argument('--adaptive', action='store_true',
+                    help='Use adaptive softmax. This speeds up computation.')
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -150,6 +154,7 @@ train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=os.path.joi
 
 ntokens = len(vocab)
 pad_idx = vocab.stoi['<pad>']
+
 pickle.dump(vocab, open('vocab_' + str(args.data) + '.pkl', 'wb'))
 print('Vocab Saved')
 
@@ -163,9 +168,10 @@ def repackage_hidden(h):
     else:
         return tuple(repackage_hidden(v) for v in h)
 
+cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 20000, 76000]
 # model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
-model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
-criterion = nn.CrossEntropyLoss(reduction='none')
+model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.wn_hid, args.dropout, args.tied, args.adaptive, cutoffs).to(device)
+criterion = nn.NLLLoss()
 
 def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
@@ -195,8 +201,11 @@ def evaluate(data_source):
             total_loss_syn += loss_syn
             total_loss_ant += loss_ant
             total_loss_hyp += loss_hyp
+            output = output.view(-1, ntokens)
+
+            loss = criterion(output, targets)
             hidden = repackage_hidden(hidden)
-            total_loss += (torch.sum(criterion(output.view(-1, ntokens), targets) * mask)/torch.sum(mask)).item()
+            total_loss += loss
     # print(total_loss_syn / (len(data_source) - 1))
     # print(total_loss_ant/ (len(data_source) - 1))
     # print(total_loss_hyp/ (len(data_source) - 1))
@@ -228,7 +237,7 @@ def train():
         output = output.view(-1, ntokens)
 
         hidden = repackage_hidden(hidden)
-        loss = torch.sum(criterion(output, targets) * mask)/torch.sum(mask)
+        loss = criterion(output, targets)
         if args.mdl == 'Vanilla':
             total_loss = loss
         elif args.mdl == 'WN':
@@ -263,9 +272,9 @@ def train():
     print()
 
 patience = 0
-model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.mdl + '.pt')
-emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '.pkl')
-emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '.txt')
+model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '.pt')
+emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '.pkl')
+emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '.txt')
 try:
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()

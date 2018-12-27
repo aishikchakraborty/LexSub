@@ -11,6 +11,8 @@ import _pickle as pickle
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--emb', type=str, default='../emb_Vanilla.pkl',
                     help='location of the trained embeddings')
+parser.add_argument('--vocab', type=str, default='../vocab.pkl',
+                    help='location of the vocab')
 parser.add_argument('--analogy-task', action='store_true',
                     help='get Google Analogy Task Results')
 parser.add_argument('--sim-task', action='store_true',
@@ -19,7 +21,7 @@ args = parser.parse_args()
 
 class WordSimilarity():
     def __init__(self, datasets):
-        self.vocab = pickle.load(open('../vocab_wikitext-2.pkl', 'rb'))
+        self.vocab = pickle.load(open(args.vocab, 'rb'))
         self.datasets = datasets
 
     def load_vocab(self):

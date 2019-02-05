@@ -1,1 +1,9 @@
 *.pyc
+output/*
+output_*/*
+vocab_*
+slurm-*.*
+*.pt
+*.pkl
+data/*
+*.*~

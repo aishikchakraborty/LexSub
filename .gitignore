@@ -6,4 +6,7 @@ slurm-*.*
 *.pt
 *.pkl
 data/*
+log/*
+models/*
+embeddings/*
 *.*~

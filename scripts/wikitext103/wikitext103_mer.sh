@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -eux
-export syn=true
-export mdl="syn"
+export mer=true
+export mdl="mer"
 
 . scripts/wikitext103/wikitext103_base.sh

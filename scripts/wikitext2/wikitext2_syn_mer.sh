@@ -2,7 +2,7 @@
 
 set -eux
 export syn=true
-export hyp=true
-export mdl="syn_hyp"
+export mer=true
+export mdl="syn_mer"
 
 . scripts/wikitext2/wikitext2_base.sh

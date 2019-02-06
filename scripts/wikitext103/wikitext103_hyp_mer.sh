@@ -1,6 +1,8 @@
 #!/bin/bash
 
 set -eux
-export mdl=syn_hyp
-export reg=true
+export mer=true
+export hyp=true
+export mdl="hyp_mer"
+
 . scripts/wikitext103/wikitext103_base.sh

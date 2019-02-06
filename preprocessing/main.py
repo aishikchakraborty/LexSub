@@ -6,9 +6,12 @@ import math
 import os
 import nltk
 from nltk.corpus import wordnet
+from nltk.corpus import stopwords
 from random import shuffle
 import codecs
 import string
+
+stopwords = nltk.corpus.stopwords.words('english')
 
 parser = argparse.ArgumentParser(description='Preprocessing for finding synonym/antonym relations')
 parser.add_argument('--data', type=str, default='../data/wikitext-2',
@@ -32,6 +35,9 @@ def remove_non_ascii(text):
     cleaned_text = filter(lambda x: x in printable, text)
     return ''.join([ch for ch in cleaned_text]) # a hack to convert filter object to string for Python 3
 
+def preprocessing(text):
+    return [tok for tok in text if tok not in stopwords and tok not in string.punctuation]
+
 def add_word(word):
     if word not in word2idx:
         idx2word.append(word)
@@ -46,6 +52,18 @@ def create_vocab(in_path):
             words = line.split()
             for w in words:
                 add_word(w)
+
+def get_wordnet_pos(treebank_tag):
+    if treebank_tag.startswith('J'):
+        return wordnet.ADJ
+    elif treebank_tag.startswith('V'):
+        return wordnet.VERB
+    elif treebank_tag.startswith('N'):
+        return wordnet.NOUN
+    elif treebank_tag.startswith('R'):
+        return wordnet.ADV
+    else:
+        return None
 
 def create_corpus(in_path, out_path):
     f1 = codecs.open(out_path, 'w', encoding="utf-8")
@@ -69,14 +87,27 @@ def create_corpus(in_path, out_path):
                 synonyms = set([])
                 antonyms = set([])
                 hypernyms = set([])
+                hyponyms = set([])
+                meronyms = set([])
+                holonyms = set([])
                 text = batched_input[k][i:i+seq_len]
                 target = batched_input[k][i+1:i+1+seq_len]
 
+                preprocessed_text = preprocessing(text)
                 # use simple nltk pos tagger for now
-                pos_tags = nltk.pos_tag(text)
-                for j, w in enumerate(text):
+                pos_tags = nltk.pos_tag(preprocessed_text)
+                for w, p in zip(preprocessed_text, pos_tags):
                     # consider only adjectives for synonyms and antonyms
-                    for syn in wordnet.synsets(w):
+                    p = get_wordnet_pos(p[1])
+                    if p is None:
+                        continue
+                    try:
+                        synsets = wordnet.synsets(w, p)
+                    except:
+                        import pdb;pdb.set_trace()
+                        pass
+
+                    for syn in synsets:
                         for lemma in syn.lemmas():
                             name = lemma.name()
 
@@ -91,11 +122,9 @@ def create_corpus(in_path, out_path):
                                 name = ant.name()
                                 tup = (w, name)
                                 if name in word2idx:
-
                                     antonyms.add(tup)
-                    for syn in wordnet.synsets(w):
-                        
-                        hyp = syn.hypernyms()
+
+                        hyp = syn.hypernyms() + syn.instance_hypernyms()
                         for h in hyp:
                             for lemma in h.lemmas():
                                 name = lemma.name()
@@ -107,12 +136,55 @@ def create_corpus(in_path, out_path):
                                 if name in word2idx:
                                     hypernyms.add(tup)
 
+                        hyp = syn.hyponyms() + syn.instance_hyponyms()
+                        for h in hyp:
+                            for lemma in h.lemmas():
+                                name = lemma.name()
+
+                                if name == w:
+                                    continue
+
+                                tup = (w, name)
+                                if name in word2idx:
+                                    hyponyms.add(tup)
+
+
+                        mer = syn.member_meronyms() + syn.part_meronyms() + syn.substance_meronyms()
+                        for m in mer:
+                            for lemma in m.lemmas():
+                                name = lemma.name()
+
+                                if name == w:
+                                    continue
+
+                                tup = (name, w)
+                                if name in word2idx:
+                                    meronyms.add(tup)
+
+                        mer = syn.member_holonyms() + syn.part_holonyms() + syn.substance_holonyms()
+                        for m in mer:
+                            for lemma in m.lemmas():
+                                name = lemma.name()
+
+                                if name == w:
+                                    continue
+
+                                tup = (name, w)
+                                if name in word2idx:
+                                    holonyms.add(tup)
+
                 synonyms = list(synonyms)
                 antonyms = list(antonyms)
                 hypernyms = list(hypernyms)
+                hyponyms = list(hyponyms)
+                meronyms = list(meronyms)
+                holonyms = list(holonyms)
                 shuffle(synonyms)
                 shuffle(antonyms)
                 shuffle(hypernyms)
+                shuffle(hyponyms)
+                shuffle(meronyms)
+                shuffle(holonyms)
 
                 text_str = ' '.join(text)
                 target_str = ' '.join(target)
@@ -120,13 +192,19 @@ def create_corpus(in_path, out_path):
                 synonym_str = ' '.join([','.join(syn) for syn in synonyms[:args.max_pair]])
                 antonym_str = ' '.join([','.join(ant) for ant in antonyms[:args.max_pair]])
                 hypernym_str = ' '.join([','.join(hyp) for hyp in hypernyms[:args.max_pair]])
+                hyponym_str = ' '.join([','.join(hyp) for hyp in hyponyms[:args.max_pair]])
+                meronym_str = ' '.join([','.join(mer) for mer in meronyms[:args.max_pair]])
+                holonym_str = ' '.join([','.join(mer) for mer in holonyms[:args.max_pair]])
 
                 output = {
                             'text': text_str,
                             'target': target_str,
                             'synonyms': synonym_str,
                             'antonyms': antonym_str,
-                            'hypernyms': hypernym_str
+                            'hypernyms': hypernym_str,
+                            'hyponyms': hyponym_str,
+                            'meronyms': meronym_str,
+                            'holonyms': holonym_str
                          }
                 f1.write(str(json.dumps(output)) + '\n')
                 f1.flush()
@@ -134,9 +212,13 @@ def create_corpus(in_path, out_path):
 create_vocab(os.path.join(args.data, 'train.txt'))
 # create_vocab(os.path.join(args.data, 'test.txt'))
 # create_vocab(os.path.join(args.data, 'valid.txt'))
+
+out_dir = os.path.join(args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size))
+if not os.path.exists(out_dir):
+    os.mkdir(out_dir)
 print('Creating train files')
-create_corpus(os.path.join(args.data, 'train.txt'), os.path.join(args.out_dir, 'train.txt'))
+create_corpus(os.path.join(args.data, 'train.txt'), os.path.join(out_dir, 'train.txt'))
 print('Creating test files')
-create_corpus(os.path.join(args.data, 'test.txt'), os.path.join(args.out_dir, 'test.txt'))
+create_corpus(os.path.join(args.data, 'test.txt'), os.path.join(out_dir, 'test.txt'))
 print('Creating valid files')
-create_corpus(os.path.join(args.data, 'valid.txt'), os.path.join(args.out_dir, 'valid.txt'))
+create_corpus(os.path.join(args.data, 'valid.txt'), os.path.join(out_dir, 'valid.txt'))

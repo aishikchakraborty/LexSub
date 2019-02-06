@@ -27,9 +27,9 @@ parser.add_argument('--data', type=str, default='wikitext-2',
                     help='location of the data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
-parser.add_argument('--mdl', type=str, default='Vanilla',
-                    help='type of model Vanilla | syn | hyp')
-parser.add_argument('--emsize', type=int, default=200,
+parser.add_argument('--lex', '-l', action="append", type=str, default=[], dest='lex_rels',
+                    help='list of type of lexical relations to capture. Options | syn | hyp | mer')
+parser.add_argument('--emsize', type=int, default=300,
                     help='size of word embeddings')
 parser.add_argument('--nhid', type=int, default=300,
                     help='number of hidden units per layer')
@@ -37,13 +37,15 @@ parser.add_argument('--wn_hid', type=int, default=100,
                     help='Dimension of the WN subspace')
 parser.add_argument('--margin', type=int, default=1,
                     help='define the margin for the max-margin loss')
+parser.add_argument('--patience', type=int, default=1,
+                    help='How long before you reduce the LR.')
 parser.add_argument('--nlayers', type=int, default=2,
                     help='number of layers')
-parser.add_argument('--lr', type=float, default=1e-3,
+parser.add_argument('--lr', type=float, default=0.001,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
-parser.add_argument('--epochs', type=int, default=100,
+parser.add_argument('--epochs', type=int, default=14,
                     help='upper epoch limit')
 parser.add_argument('--batch-size', type=int, default=20, metavar='N',
                     help='batch size')
@@ -69,6 +71,13 @@ parser.add_argument('--onnx-export', type=str, default='',
                     help='path to export the final model in onnx format')
 parser.add_argument('--adaptive', action='store_true',
                     help='Use adaptive softmax. This speeds up computation.')
+parser.add_argument('--wn_ratio', type=float, default=0.2,
+                    help='dropout applied to layers (0 = no dropout)')
+parser.add_argument('--distance', type=str, default='pairwise',
+                    help='Type of distance to use. Options are [pairwise, cosine]')
+parser.add_argument('--optim', type=str, default='sgd',
+                    help='Type of optimizer to use. Options are [sgd, adam]')
+parser.add_argument('--reg', action='store_true', help='Regularize.')
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -110,7 +119,8 @@ class Dataset(data.TabularDataset):
                 'target': ('target', TEXT_FIELD),
                 'synonyms': ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
                 'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
-                'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
+                'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                'meronyms': ('meronyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
                 }
 
         suffix = hashlib.md5('{}-{}-{}-{}-{}'.format(version, dataset_dir,
@@ -144,19 +154,19 @@ class Dataset(data.TabularDataset):
                                                 shuffle=False, repeat=False, sort=False)
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
 
-train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated'), device=device)
+dist_fn = lambda x1,x2: 1 - F.cosine_similarity(x1,x2) if args.distance == 'cosine' else F.pairwise_distance(x1,x2)
+
+train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size)), device=device)
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
-# train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
+# train_iter, valid_iter, test_iter = datasets.WikiText103.iters(batch_size=args.batch_size, bptt_len=args.bptt,
                                                              # device=device, root=args.data)
 # vocab = train_iter.dataset.fields['text'].vocab
 
 ntokens = len(vocab)
 pad_idx = vocab.stoi['<pad>']
 
-pickle.dump(vocab, open('vocab_' + str(args.data) + '.pkl', 'wb'))
-print('Vocab Saved')
 
 lr = args.lr
 best_val_loss = None
@@ -173,6 +183,14 @@ cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 20000, 7600
 model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.wn_hid, args.dropout, args.tied, args.adaptive, cutoffs).to(device)
 criterion = nn.NLLLoss()
 
+optimizer = torch.optim.Adam(model.parameters(), lr=lr) if args.optim == 'adam' else torch.optim.SGD(model.parameters(), lr=lr)
+milestones=[4,6,8] if args.data == 'wikitext-103' else [10, 25, 35, 45]
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
+
+pickle.dump(vocab, open('vocab_' + str(args.data) + '.pkl', 'wb'))
+print('Vocab Saved')
+
+print('Lex Rel List: {}'.format(args.lex_rels))
 def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
@@ -180,6 +198,7 @@ def evaluate(data_source):
     total_loss_syn = 0.
     total_loss_ant = 0.
     total_loss_hyp = 0.
+    total_loss_mern = 0.
     hidden = model.init_hidden(args.batch_size)
     start_time = time.time()
     with torch.no_grad():
@@ -187,71 +206,93 @@ def evaluate(data_source):
 
 
             data, targets = batch.text, batch.target
-            synonyms, antonyms, hypernyms = batch.synonyms, batch.antonyms, batch.hypernyms
+            synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
 
             targets = targets.view(-1)
 
             mask = 1 - (targets == pad_idx).float()
             # output, hidden = model(data, hidden)
-            output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, hidden = model(data, hidden, synonyms, antonyms, hypernyms)
-            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
-            loss_hyp = torch.mean(torch.sum(torch.pow(emb_hyp1 - emb_hyp2, 2), dim=-1))
-            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))
+            output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, emb_mern1, emb_mern2, hidden, reg_loss = model(data, hidden, synonyms, antonyms, hypernyms, meronyms)
+            loss_syn = torch.mean(dist_fn(emb_syn1, emb_syn2))
+            loss_ant = torch.mean(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)))
+            loss_hyp = torch.mean(dist_fn(emb_hyp1, emb_hyp2))
+            loss_mern = torch.mean(dist_fn(emb_mern1, emb_mern2))
 
             total_loss_syn += loss_syn
             total_loss_ant += loss_ant
             total_loss_hyp += loss_hyp
+            total_loss_mern += loss_mern
             output = output.view(-1, ntokens)
 
             loss = criterion(output, targets)
             hidden = repackage_hidden(hidden)
             total_loss += loss
-    # print(total_loss_syn / (len(data_source) - 1))
-    # print(total_loss_ant/ (len(data_source) - 1))
-    # print(total_loss_hyp/ (len(data_source) - 1))
-    return total_loss / (len(data_source) - 1)
+    return total_loss/(len(data_source) - 1), total_loss_syn/(len(data_source) - 1), total_loss_ant/(len(data_source) - 1), \
+            total_loss_hyp/ (len(data_source) - 1), total_loss_mern/(len(data_source) - 1)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-# optimizer = torch.optim.SGD(model.parameters(), lr=lr)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=0, verbose=True, factor=0.25)
+
 def train():
     # Turn on training mode which enables dropout.
     model.train()
     total_loss_ = 0.
+    total_loss_hyp = 0.
+    total_loss_syn = 0.
+    total_loss_ant = 0.
+    total_loss_mern = 0.
+    total_loss_reg = 0.
     start_time = time.time()
     hidden = model.init_hidden(args.batch_size)
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target
-        synonyms, antonyms, hypernyms = batch.synonyms, batch.antonyms, batch.hypernyms
+        synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
         synonyms = synonyms.view(-1, 2)
         antonyms = antonyms.view(-1, 2)
         hypernyms = hypernyms.view(-1, 2)
+        meronyms = meronyms.view(-1, 2)
         targets = targets.view(-1)
 
-        mask = 1 - (targets == pad_idx).float()
         optimizer.zero_grad()
 
         # output, hidden = model(data, hidden)
-        output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, hidden = model(data, hidden, synonyms, antonyms, hypernyms)
+        output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, emb_mern1, emb_mern2, hidden, reg_loss = model(data, hidden, synonyms, antonyms, hypernyms, meronyms)
 
         output = output.view(-1, ntokens)
 
         hidden = repackage_hidden(hidden)
         loss = criterion(output, targets)
-        if args.mdl == 'Vanilla':
-            total_loss = loss
-        elif args.mdl == 'WN':
-            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
-            loss_hyp = torch.mean(torch.sum(torch.pow(emb_hyp1 - emb_hyp2, 2), dim=-1))
-            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))
-            total_loss = loss + loss_syn + loss_ant
-        elif args.mdl == 'syn+hyp':
-            loss_syn = torch.mean(torch.sum(torch.pow(emb_syn1 - emb_syn2, 2), dim=-1))
-            loss_hyp = torch.mean(torch.sum(torch.pow(emb_hyp1 - emb_hyp2, 2), dim=-1))
-            loss_ant = torch.abs(args.margin - torch.mean(torch.sum(torch.pow(emb_ant1 - emb_ant2, 2), dim=-1)))
-            total_loss = loss + loss_syn + loss_ant + loss_hyp
-        total_loss.backward()
 
+        total_loss = loss
+
+        if 'syn' in args.lex_rels:
+            loss_syn = torch.mean(dist_fn(emb_syn1, emb_syn2))
+            loss_ant = torch.mean(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)))
+            total_loss += loss_syn + loss_ant
+            total_loss_syn += loss_syn.item()
+            total_loss_ant += loss_ant.item()
+
+        if 'hyp' in args.lex_rels:
+            hyp_mask = 1 - (hypernyms[:,0] == pad_idx).unsqueeze(1).expand(-1, args.wn_hid).float()
+            hyp_len = torch.sum(1 - (hypernyms[:,0] == pad_idx).float())
+            emb_hyp1, emb_hyp2 = (emb_hyp1 * hyp_mask, emb_hyp2 * hyp_mask)
+
+            loss_hyp = torch.mean(dist_fn(emb_hyp1, emb_hyp2))
+            total_loss += loss_hyp
+            total_loss_hyp += loss_hyp.item()
+
+        if 'mer' in args.lex_rels:
+            mer_mask = 1 - (meronyms[:,0] == pad_idx).unsqueeze(1).expand(-1, args.wn_hid).float()
+            mer_len = torch.sum(1 - (meronyms[:,0] == pad_idx).float())
+            emb_mern1, emb_mern2 = (emb_mern1 * mer_mask, emb_mern2 * mer_mask)
+
+            loss_mern = torch.mean(dist_fn(emb_mern1, emb_mern2))
+            total_loss += loss_mern
+            total_loss_mern += loss_mern.item()
+
+        total_loss_reg = reg_loss
+        if args.reg:
+            total_loss += reg_loss
+
+        total_loss.backward()
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
@@ -261,43 +302,54 @@ def train():
 
         if idx % args.log_interval == 0 and idx > 0:
             cur_loss = total_loss_ / args.log_interval
+            curr_syn_loss = total_loss_syn / args.log_interval
+            curr_ant_loss = total_loss_ant / args.log_interval
+            curr_hyp_loss = total_loss_hyp / args.log_interval
+            curr_mern_loss = total_loss_mern / args.log_interval
+            curr_reg_loss = total_loss_reg / args.log_interval
+
             elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | '
-                    'loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, idx, len(train_iter), optimizer.param_groups[0]['lr'],
-                elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
+            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | loss {:5.2f} | ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f} | reg_loss {:5.2f}'
+                    .format(epoch, idx, len(train_iter), optimizer.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
+                        cur_loss, math.exp(cur_loss), curr_syn_loss, curr_ant_loss, curr_hyp_loss, curr_mern_loss, curr_reg_loss))
             start_time = time.time()
             total_loss_ = 0
+            total_loss_syn = 0
+            total_loss_ant = 0
+            total_loss_hyp = 0
+            total_loss_mern = 0
 
     print()
 
 patience = 0
-model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '.pt')
-emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '.pkl')
-emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.mdl + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '.txt')
+lex_rels = '_'.join(args.lex_rels)
+model_name = os.path.join(args.save, 'model_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pt')
+emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
+emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.txt')
+
 try:
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         train()
-        val_loss = evaluate(valid_iter)
+        val_loss, loss_syn, loss_ant, loss_hyp, loss_mer = evaluate(valid_iter)
         print('-' * 89)
-        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
-                'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
-                                           val_loss, math.exp(val_loss)))
+        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'
+                    .format(epoch, (time.time() - epoch_start_time), val_loss, math.exp(val_loss),
+                                    loss_syn, loss_ant, loss_hyp, loss_mer))
         print('-' * 89)
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
             with open(model_name, 'wb') as f:
                 torch.save(model, f)
-            print('Saving learnt embeddings ')
+            print('Saving learnt embeddings : %s' % emb_name)
             pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
 
             best_val_loss = val_loss
             patience = 0
         else:
             patience += 1
-        scheduler.step(val_loss)
-        if patience > 3:
+        scheduler.step()
+        if False and patience > 3:
             break
 except KeyboardInterrupt:
     print('-' * 89)
@@ -312,10 +364,10 @@ with open(model_name, 'rb') as f:
 
 
 # Run on test data.
-test_loss = evaluate(test_iter)
+test_loss, test_syn, test_ant, test_hyp, test_mer = evaluate(test_iter)
 print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
-    test_loss, math.exp(test_loss)))
+print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'.format(
+    test_loss, math.exp(test_loss), test_syn, test_ant, test_hyp, test_mer))
 print('=' * 89)
 print('Saving final learnt embeddings ')
 pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))

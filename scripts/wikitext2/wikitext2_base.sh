@@ -15,5 +15,5 @@ export distance=pairwise
 export output_dir="output/${data}_${mdl}""$([[ $reg ]] && echo _reg || echo '')""/$(date '+%Y_%m_%d_%H_%M')"
 
 mkdir -p ${output_dir}
-sbatch -t 23:00:00 -e ${output_dir}/std.err -o ${output_dir}/std.out scripts/launcher_wn.sh
+sbatch -t 23:00:00 -e ${output_dir}/std.out -o ${output_dir}/std.out scripts/launcher_wn.sh
 #./scripts/launcher_wn.sh

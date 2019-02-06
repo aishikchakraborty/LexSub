@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
+import torch
 
 class RNNWordnetModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
@@ -23,10 +24,14 @@ class RNNWordnetModel(nn.Module):
         else:
             self.decoder = nn.Linear(nhid, ntoken)
 
-        self.wn_proj = nn.Linear(ninp, wn_hid)
+        self.syn_proj = nn.Linear(ninp, wn_hid, bias=False)
 
-        self.hypernym_proj = nn.Linear(ninp, nhid)
-        self.inner_hyp_proj = nn.Linear(nhid, nhid)
+        self.hypn_proj = nn.Linear(ninp, wn_hid, bias=False)
+        self.hypn_rel = nn.Linear(wn_hid, wn_hid)
+
+        self.mern_proj = nn.Linear(ninp, wn_hid, bias=False)
+        self.mern_rel = nn.Linear(wn_hid, wn_hid)
+
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)
         # https://arxiv.org/abs/1608.05859
@@ -43,6 +48,7 @@ class RNNWordnetModel(nn.Module):
         self.rnn_type = rnn_type
         self.nhid = nhid
         self.nlayers = nlayers
+        self.wn_hid = wn_hid
 
     def init_weights(self):
         initrange = 0.1
@@ -51,19 +57,21 @@ class RNNWordnetModel(nn.Module):
             self.decoder.bias.data.zero_()
             self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, input, hidden, synonym, antonym, hypernym):
+    def forward(self, input, hidden, synonym, antonym, hypernym, meronym):
         emb = self.drop(self.encoder(input))
-        emb_syn1 = self.wn_proj(self.encoder(synonym[:, 0]))
-        emb_syn2 = self.wn_proj(self.encoder(synonym[:, 1]))
+        emb_syn1 = self.syn_proj(self.encoder(synonym[:, 0]))
+        emb_syn2 = self.syn_proj(self.encoder(synonym[:, 1]))
 
-        emb_ant1 =self.wn_proj(self.encoder(antonym[:, 0]))
-        emb_ant2 = self.wn_proj(self.encoder(antonym[:, 1]))
+        emb_ant1 =self.syn_proj(self.encoder(antonym[:, 0]))
+        emb_ant2 = self.syn_proj(self.encoder(antonym[:, 1]))
 
+        emb_hypn1 = self.hypn_proj(self.encoder(hypernym[:, 0]))
+        emb_hypn2 = self.hypn_proj(self.encoder(hypernym[:, 1]))
+        emb_hypn1 = self.hypn_rel(emb_hypn1)
 
-        emb_hyp1 = self.wn_proj(self.encoder(hypernym[:, 0]))
-        emb_hyp2 = self.wn_proj(self.encoder(hypernym[:, 1]))
-
-        emb_hyp1 = self.inner_hyp_proj(emb_hyp1)
+        emb_mern1 = self.mern_proj(self.encoder(meronym[:, 0]))
+        emb_mern2 = self.mern_proj(self.encoder(meronym[:, 1]))
+        emb_mern1 = self.mern_rel(emb_mern1)
 
         output, hidden = self.rnn(emb, hidden)
         output = self.drop(output)
@@ -72,7 +80,17 @@ class RNNWordnetModel(nn.Module):
         else:
             decoded = F.log_softmax(self.decoder(output.view(output.size(0)*output.size(1), output.size(2))), dim=-1)
         decoded = decoded.view(output.size(0), output.size(1), decoded.size(1))
-        return decoded, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, hidden
+
+        eye = torch.eye(self.wn_hid, device=self.syn_proj.weight.device)
+        reg_loss =  torch.sum(\
+                             torch.pow(torch.mm(self.syn_proj.weight, self.hypn_proj.weight.t()), 2) + \
+                             torch.pow(torch.mm(self.syn_proj.weight, self.mern_proj.weight.t()), 2) + \
+                             torch.pow(torch.mm(self.hypn_proj.weight, self.mern_proj.weight.t()), 2)) # + \
+                             # torch.pow(torch.sum(self.syn_proj.weight**2) - 1, 2) + \
+                             # torch.pow(torch.sum(self.hypn_proj.weight**2) - 1, 2) + \
+                             # torch.pow(torch.sum(self.mern_proj.weight**2) - 1, 2)
+
+        return decoded, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hypn1, emb_hypn2, emb_mern1, emb_mern2, hidden, reg_loss
 
     def init_hidden(self, bsz):
         weight = next(self.parameters())

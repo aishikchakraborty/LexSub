@@ -31,10 +31,6 @@ if [ -n "$patience" ]; then
     cmd+=" --patience $patience"
 fi
 
-if [ -n "$mdl" ]; then
-    cmd+=" --mdl $mdl"
-fi
-
 if [ -n "$emb_size" ]; then
     cmd+=" --emsize $emb_size"
 fi
@@ -71,6 +67,18 @@ if [ -n "$adaptive" ]; then
     cmd+=" --adaptive"
 fi
 
+if [ -n "$syn" ]; then
+    cmd+=" -l syn"
+fi
+
+if [ -n "$hyp" ]; then
+    cmd+=" -l hyp"
+fi
+
+if [ -n "$mer" ]; then
+    cmd+=" -l mer"
+fi
+
 $cmd
 
 emb_filename=emb_${data}_${mdl}_${emb_size}_${nhid}_${wnhid}_${distance}
@@ -81,7 +89,7 @@ python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ..
 cd -;
 export emb_filetxt=${output_dir}/${emb_filename}.txt
 
-for task in sst esim # bidaf
+for task in sst esim bidaf
 do
     task_file=$(mktemp ${output_dir}/${task}-${emb_filename}.XXXXXX)
     envsubst < ./extrinsic_tasks/local/${task}_template.jsonnet > ${task_file}

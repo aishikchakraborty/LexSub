@@ -19,8 +19,8 @@
       }
     }
   },
-  "train_data_path": "../datasets/squad/squad-train-v1.1.json",
-  "validation_data_path": "../datasets/squad/squad-dev-v1.1.json",
+  "train_data_path": "extrinsic_tasks/datasets/squad/squad-train-v1.1.json",
+  "validation_data_path": "extrinsic_tasks/datasets/squad/squad-dev-v1.1.json",
   "model": {
     "type": "bidaf",
     "text_field_embedder": {

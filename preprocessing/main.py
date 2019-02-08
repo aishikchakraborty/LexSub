@@ -65,6 +65,81 @@ def get_wordnet_pos(treebank_tag):
     else:
         return None
 
+
+def get_lexical_relations(word, pos_tag, word2idx):
+    synonyms = set([]); antonyms = set([]);
+    hypernyms = set([]); hyponyms = set([]);
+    meronyms = set([]); holonyms = set([])
+    try:
+        synsets = wordnet.synsets(word)
+    except:
+        pass
+
+    for syn in synsets:
+        for lemma in syn.lemmas():
+            name = lemma.name()
+            if name == word:
+                continue
+
+            tup = (word, name)
+            if name in word2idx:
+                synonyms.add(tup)
+
+            for ant in lemma.antonyms():
+                name = ant.name()
+                tup = (word, name)
+                if name in word2idx:
+                    antonyms.add(tup)
+
+        if syn.pos() != 'v':
+            hyp = syn.hypernyms() + syn.instance_hypernyms()
+            for h in hyp:
+                for lemma in h.lemmas():
+                    name = lemma.name()
+                    if name == word:
+                        continue
+
+                    tup = (word, name)
+                    if name in word2idx:
+                        hypernyms.add(tup)
+
+            hyp = syn.hyponyms() + syn.instance_hyponyms()
+            for h in hyp:
+                for lemma in h.lemmas():
+                    name = lemma.name()
+                    if name == word:
+                        continue
+
+                    tup = (word, name)
+                    if name in word2idx:
+                        hyponyms.add(tup)
+
+        mer = syn.member_meronyms() + syn.part_meronyms() + syn.substance_meronyms()
+        for m in mer:
+            for lemma in m.lemmas():
+                name = lemma.name()
+                if name == word:
+                    continue
+
+                tup = (name, word)
+                if name in word2idx:
+                    meronyms.add(tup)
+
+        mer = syn.member_holonyms() + syn.part_holonyms() + syn.substance_holonyms()
+        for m in mer:
+            for lemma in m.lemmas():
+                name = lemma.name()
+                if name == word:
+                    continue
+
+                tup = (name, word)
+                if name in word2idx:
+                    holonyms.add(tup)
+
+    return synonyms, antonyms, hypernyms, hyponyms, meronyms, holonyms
+
+
+
 def create_corpus(in_path, out_path):
     f1 = codecs.open(out_path, 'w', encoding="utf-8")
     with codecs.open(in_path, 'r', encoding="utf8") as f:
@@ -101,77 +176,14 @@ def create_corpus(in_path, out_path):
                     p = get_wordnet_pos(p[1])
                     if p is None:
                         continue
-                    try:
-                        synsets = wordnet.synsets(w, p)
-                    except:
-                        import pdb;pdb.set_trace()
-                        pass
-
-                    for syn in synsets:
-                        for lemma in syn.lemmas():
-                            name = lemma.name()
-
-                            if name == w:
-                                continue
-
-                            tup = (w, name)
-                            if name in word2idx:
-                                synonyms.add(tup)
-
-                            for ant in lemma.antonyms():
-                                name = ant.name()
-                                tup = (w, name)
-                                if name in word2idx:
-                                    antonyms.add(tup)
-
-                        hyp = syn.hypernyms() + syn.instance_hypernyms()
-                        for h in hyp:
-                            for lemma in h.lemmas():
-                                name = lemma.name()
-
-                                if name == w:
-                                    continue
-
-                                tup = (w, name)
-                                if name in word2idx:
-                                    hypernyms.add(tup)
-
-                        hyp = syn.hyponyms() + syn.instance_hyponyms()
-                        for h in hyp:
-                            for lemma in h.lemmas():
-                                name = lemma.name()
-
-                                if name == w:
-                                    continue
-
-                                tup = (w, name)
-                                if name in word2idx:
-                                    hyponyms.add(tup)
-
-
-                        mer = syn.member_meronyms() + syn.part_meronyms() + syn.substance_meronyms()
-                        for m in mer:
-                            for lemma in m.lemmas():
-                                name = lemma.name()
-
-                                if name == w:
-                                    continue
-
-                                tup = (name, w)
-                                if name in word2idx:
-                                    meronyms.add(tup)
-
-                        mer = syn.member_holonyms() + syn.part_holonyms() + syn.substance_holonyms()
-                        for m in mer:
-                            for lemma in m.lemmas():
-                                name = lemma.name()
-
-                                if name == w:
-                                    continue
-
-                                tup = (name, w)
-                                if name in word2idx:
-                                    holonyms.add(tup)
+                    word_syn, word_ant, word_hyp, word_hypo, \
+                        word_mer, word_hol = get_lexical_relations(w, p, word2idx)
+                    synonyms.update(word_syn)
+                    antonyms.update(word_ant)
+                    hypernyms.update(word_hyp)
+                    hyponyms.update(word_hypo)
+                    meronyms.update(word_mer)
+                    holonyms.update(word_hol)
 
                 synonyms = list(synonyms)
                 antonyms = list(antonyms)

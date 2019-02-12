@@ -79,6 +79,10 @@ if [ -n "$mer" ]; then
     cmd+=" -l mer"
 fi
 
+if [ -n "$seg" ]; then
+    cmd+=" --seg"
+fi
+
 $cmd
 
 emb_filename=emb_${data}_${mdl}_${emb_size}_${nhid}_${wnhid}_${distance}

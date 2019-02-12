@@ -78,6 +78,7 @@ parser.add_argument('--distance', type=str, default='pairwise',
 parser.add_argument('--optim', type=str, default='sgd',
                     help='Type of optimizer to use. Options are [sgd, adam]')
 parser.add_argument('--reg', action='store_true', help='Regularize.')
+parser.add_argument('--seg', action='store_true', help='Segregated WN and LM model.')
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -179,8 +180,14 @@ def repackage_hidden(h):
         return tuple(repackage_hidden(v) for v in h)
 
 cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 20000, 76000]
-# model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
-model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.wn_hid, args.dropout, args.tied, args.adaptive, cutoffs).to(device)
+
+if args.seg:
+    lm_model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied, args.adaptive).to(device)
+    wn_model = model.WNModel(lm_model.encoder, args.emsize, args.wn_hid, args.margin).to(device)
+    model = model.WNLM(lm_model, wn_model).to(device)
+else:
+    model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.wn_hid, args.dropout, args.tied, args.adaptive, cutoffs).to(device)
+
 criterion = nn.NLLLoss()
 
 optimizer = torch.optim.Adam(model.parameters(), lr=lr) if args.optim == 'adam' else torch.optim.SGD(model.parameters(), lr=lr)
@@ -208,25 +215,51 @@ def evaluate(data_source):
             data, targets = batch.text, batch.target
             synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
 
-            targets = targets.view(-1)
 
-            mask = 1 - (targets == pad_idx).float()
-            # output, hidden = model(data, hidden)
-            output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, emb_mern1, emb_mern2, hidden, reg_loss = model(data, hidden, synonyms, antonyms, hypernyms, meronyms)
-            loss_syn = torch.mean(dist_fn(emb_syn1, emb_syn2))
-            loss_ant = torch.mean(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)))
-            loss_hyp = torch.mean(dist_fn(emb_hyp1, emb_hyp2))
-            loss_mern = torch.mean(dist_fn(emb_mern1, emb_mern2))
-
-            total_loss_syn += loss_syn
-            total_loss_ant += loss_ant
-            total_loss_hyp += loss_hyp
-            total_loss_mern += loss_mern
+            output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
+            output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
             output = output.view(-1, ntokens)
-
-            loss = criterion(output, targets)
+            targets = targets.view(-1)
             hidden = repackage_hidden(hidden)
+
+            loss = output_dict.get('loss_lm', criterion(output, targets))
             total_loss += loss
+
+            if 'syn' in args.lex_rels:
+                emb_syn1, emb_syn2 = output_dict['syn_emb']
+                loss_syn = output_dict.get('loss_syn',
+                                            torch.mean(dist_fn(emb_syn1, emb_syn2)))
+                total_loss_syn += loss_syn
+
+                emb_ant1, emb_ant2 = output_dict['ant_emb']
+                loss_ant = output_dict.get('loss_ant',
+                                            torch.mean(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2))))
+                total_loss_ant += loss_ant
+
+            if 'hyp' in args.lex_rels:
+                if 'loss_hyp' in output_dict:
+                    loss_hyp = output_dict['loss_hyp']
+                else:
+                    emb_hyp1, emb_hyp2 = output_dict['hyp_emb']
+                    hyp_mask = 1 - (hypernyms[:,0] == pad_idx).unsqueeze(1).expand(-1, args.wn_hid).float()
+                    hyp_len = torch.sum(1 - (hypernyms[:,0] == pad_idx).float())
+                    emb_hyp1, emb_hyp2 = (emb_hyp1 * hyp_mask, emb_hyp2 * hyp_mask)
+                    loss_hyp = torch.mean(dist_fn(emb_hyp1, emb_hyp2))
+
+                total_loss_hyp += loss_hyp
+
+            if 'mer' in args.lex_rels:
+                if 'loss_mer' in output_dict:
+                    loss_mer = output_dict['loss_mer']
+                else:
+                    emb_mern1, emb_mern2 = output_dict['mer_emb']
+                    mer_mask = 1 - (meronyms[:,0] == pad_idx).unsqueeze(1).expand(-1, args.wn_hid).float()
+                    mer_len = torch.sum(1 - (meronyms[:,0] == pad_idx).float())
+                    emb_mern1, emb_mern2 = (emb_mern1 * mer_mask, emb_mern2 * mer_mask)
+                    loss_mer = torch.mean(dist_fn(emb_mern1, emb_mern2))
+
+                total_loss_mern += loss_mer
+
     return total_loss/(len(data_source) - 1), total_loss_syn/(len(data_source) - 1), total_loss_ant/(len(data_source) - 1), \
             total_loss_hyp/ (len(data_source) - 1), total_loss_mern/(len(data_source) - 1)
 
@@ -249,47 +282,61 @@ def train():
         antonyms = antonyms.view(-1, 2)
         hypernyms = hypernyms.view(-1, 2)
         meronyms = meronyms.view(-1, 2)
-        targets = targets.view(-1)
 
         optimizer.zero_grad()
 
-        # output, hidden = model(data, hidden)
-        output, emb_syn1, emb_syn2, emb_ant1, emb_ant2, emb_hyp1, emb_hyp2, emb_mern1, emb_mern2, hidden, reg_loss = model(data, hidden, synonyms, antonyms, hypernyms, meronyms)
+        output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
 
+        output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
         output = output.view(-1, ntokens)
-
+        targets = targets.view(-1)
         hidden = repackage_hidden(hidden)
-        loss = criterion(output, targets)
 
+        loss = output_dict.get('loss_lm', criterion(output, targets))
         total_loss = loss
 
         if 'syn' in args.lex_rels:
-            loss_syn = torch.mean(dist_fn(emb_syn1, emb_syn2))
-            loss_ant = torch.mean(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)))
+            emb_syn1, emb_syn2 = output_dict['syn_emb']
+            loss_syn = output_dict.get('loss_syn',
+                                        torch.mean(dist_fn(emb_syn1, emb_syn2)))
+
+            emb_ant1, emb_ant2 = output_dict['ant_emb']
+            loss_ant = output_dict.get('loss_ant',
+                                        torch.mean(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2))))
+
             total_loss += loss_syn + loss_ant
             total_loss_syn += loss_syn.item()
             total_loss_ant += loss_ant.item()
 
         if 'hyp' in args.lex_rels:
-            hyp_mask = 1 - (hypernyms[:,0] == pad_idx).unsqueeze(1).expand(-1, args.wn_hid).float()
-            hyp_len = torch.sum(1 - (hypernyms[:,0] == pad_idx).float())
-            emb_hyp1, emb_hyp2 = (emb_hyp1 * hyp_mask, emb_hyp2 * hyp_mask)
+            if 'loss_hyp' in output_dict:
+                loss_hyp = output_dict['loss_hyp']
+            else:
+                emb_hyp1, emb_hyp2 = output_dict['hyp_emb']
+                hyp_mask = 1 - (hypernyms[:,0] == pad_idx).unsqueeze(1).expand(-1, args.wn_hid).float()
+                hyp_len = torch.sum(1 - (hypernyms[:,0] == pad_idx).float())
+                emb_hyp1, emb_hyp2 = (emb_hyp1 * hyp_mask, emb_hyp2 * hyp_mask)
+                loss_hyp = torch.mean(dist_fn(emb_hyp1, emb_hyp2))
 
-            loss_hyp = torch.mean(dist_fn(emb_hyp1, emb_hyp2))
             total_loss += loss_hyp
             total_loss_hyp += loss_hyp.item()
 
         if 'mer' in args.lex_rels:
-            mer_mask = 1 - (meronyms[:,0] == pad_idx).unsqueeze(1).expand(-1, args.wn_hid).float()
-            mer_len = torch.sum(1 - (meronyms[:,0] == pad_idx).float())
-            emb_mern1, emb_mern2 = (emb_mern1 * mer_mask, emb_mern2 * mer_mask)
+            if 'loss_mer' in output_dict:
+                loss_mer = output_dict['loss_mer']
+            else:
+                emb_mern1, emb_mern2 = output_dict['mer_emb']
+                mer_mask = 1 - (meronyms[:,0] == pad_idx).unsqueeze(1).expand(-1, args.wn_hid).float()
+                mer_len = torch.sum(1 - (meronyms[:,0] == pad_idx).float())
+                emb_mern1, emb_mern2 = (emb_mern1 * mer_mask, emb_mern2 * mer_mask)
+                loss_mer = torch.mean(dist_fn(emb_mern1, emb_mern2))
 
-            loss_mern = torch.mean(dist_fn(emb_mern1, emb_mern2))
-            total_loss += loss_mern
-            total_loss_mern += loss_mern.item()
+            total_loss += loss_mer
+            total_loss_mern += loss_mer.item()
 
-        total_loss_reg = reg_loss
         if args.reg:
+            reg_loss = output_dict.get('reg_loss', 0)
+            total_loss_reg = reg_loss
             total_loss += reg_loss
 
         total_loss.backward()

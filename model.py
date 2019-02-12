@@ -189,18 +189,38 @@ class RNNModel(nn.Module):
             return weight.new_zeros(self.nlayers, bsz, self.nhid)
 
 class WNModel(nn.Module):
-    def __init__(self, embedding, emb_dim, wn_dim, antonym_margin=1, dist_fn=F.pairwise_distance):
+    def __init__(self, embedding, emb_dim, wn_dim, antonym_margin=1, dist_fn=F.pairwise_distance, fixed=False, random=False):
         super(WNModel, self).__init__()
         self.embedding = embedding
         self.emb_dim = emb_dim
         self.wn_dim = wn_dim
 
         self.syn_proj = nn.Linear(emb_dim, wn_dim, bias=False)
-
         self.hypn_proj = nn.Linear(emb_dim, wn_dim, bias=False)
-        self.hypn_rel = nn.Linear(wn_dim, wn_dim)
-
         self.mern_proj = nn.Linear(emb_dim, wn_dim, bias=False)
+
+        if fixed:
+            self.syn_proj.weight.data.zero_()
+            self.hypn_proj.weight.data.zero_()
+            self.mern_proj.weight.data.zero_()
+
+            eye = torch.eye(wn_dim)
+            self.syn_proj.weight.data[:,0:wn_dim] = eye
+            self.hypn_proj.weight.data[:,wn_dim:2*wn_dim] = eye
+            self.mern_proj.weight.data[:, -wn_dim:] = eye
+
+
+        if fixed or random:
+            for param in self.syn_proj.parameters():
+                param.requires_grad = False
+
+            for param in self.hypn_proj.parameters():
+                param.requires_grad = False
+
+            for param in self.mern_proj.parameters():
+                param.requires_grad = False
+
+        self.hypn_rel = nn.Linear(wn_dim, wn_dim)
         self.mern_rel = nn.Linear(wn_dim, wn_dim)
 
         self.antonym_margin = antonym_margin
@@ -242,7 +262,8 @@ class WNLM(nn.Module):
         super(WNLM, self).__init__()
         self.lm = lm_module
         self.wn = wn_module
-        self.encoder = self.lm_module.encoder
+        self.encoder = self.lm.encoder
+        self.rnn = self.lm.rnn
 
     def init_weights(self):
         self.lm.init_weights()

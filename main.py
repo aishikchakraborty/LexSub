@@ -79,6 +79,8 @@ parser.add_argument('--optim', type=str, default='sgd',
                     help='Type of optimizer to use. Options are [sgd, adam]')
 parser.add_argument('--reg', action='store_true', help='Regularize.')
 parser.add_argument('--seg', action='store_true', help='Segregated WN and LM model.')
+parser.add_argument('--fixed_wn', action='store_true', help='Fixed WN proj matrices to identity matrix.')
+parser.add_argument('--random_wn', action='store_true', help='Fix random WN proj matrix and not learn it.')
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -183,7 +185,10 @@ cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 20000, 7600
 
 if args.seg:
     lm_model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied, args.adaptive).to(device)
-    wn_model = model.WNModel(lm_model.encoder, args.emsize, args.wn_hid, args.margin).to(device)
+    wn_model = model.WNModel(lm_model.encoder, args.emsize, args.wn_hid,
+                             antonym_margin=args.margin,
+                             fixed=args.fixed_wn,
+                             random=args.random_wn).to(device)
     model = model.WNLM(lm_model, wn_model).to(device)
 else:
     model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.wn_hid, args.dropout, args.tied, args.adaptive, cutoffs).to(device)

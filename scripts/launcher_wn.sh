@@ -83,6 +83,14 @@ if [ -n "$seg" ]; then
     cmd+=" --seg"
 fi
 
+if [ -n "$fixed_wn" ]; then
+    cmd+=" --fixed_wn"
+fi
+
+if [ -n "$random_wn" ]; then
+    cmd+=" --random_wn"
+fi
+
 $cmd
 
 emb_filename=emb_${data}_${mdl}_${emb_size}_${nhid}_${wnhid}_${distance}

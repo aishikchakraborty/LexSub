@@ -66,7 +66,7 @@ def get_wordnet_pos(treebank_tag):
         return None
 
 
-def get_lexical_relations(word, pos_tag, word2idx):
+def get_lexical_relations(word, word2idx):
     synonyms = set([]); antonyms = set([]);
     hypernyms = set([]); hyponyms = set([]);
     meronyms = set([]); holonyms = set([])
@@ -177,7 +177,7 @@ def create_corpus(in_path, out_path):
                     if p is None:
                         continue
                     word_syn, word_ant, word_hyp, word_hypo, \
-                        word_mer, word_hol = get_lexical_relations(w, p, word2idx)
+                        word_mer, word_hol = get_lexical_relations(w, word2idx)
                     synonyms.update(word_syn)
                     antonyms.update(word_ant)
                     hypernyms.update(word_hyp)

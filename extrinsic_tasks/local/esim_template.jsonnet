@@ -11,6 +11,7 @@
     "train_data_path": "extrinsic_tasks/datasets/snli/snli_1.0_train.json",
     "validation_data_path": "extrinsic_tasks/datasets/snli/snli_1.0_dev.json",
     "test_data_path": "extrinsic_tasks/datasets/snli/snli_1.0_test.json",
+    "evaluate_on_test": true,
     "model": {
         "type": "esim",
         "dropout": 0.5,

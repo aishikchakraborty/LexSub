@@ -184,7 +184,10 @@ def repackage_hidden(h):
 cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 20000, 76000]
 
 if args.seg:
-    lm_model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied, args.adaptive).to(device)
+    lm_model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout,
+                              cutoffs=cutoffs,
+                              tie_weights=args.tied,
+                              adaptive=args.adaptive).to(device)
     wn_model = model.WNModel(lm_model.encoder, args.emsize, args.wn_hid,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
@@ -374,7 +377,7 @@ def train():
     print()
 
 patience = 0
-lex_rels = '_'.join(args.lex_rels)
+lex_rels = '_'.join(args.lex_rels) if len(args.lex_rels) > 0 else 'vanilla'
 model_name = os.path.join(args.save, 'model_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pt')
 emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
 emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.txt')

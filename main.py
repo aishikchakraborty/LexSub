@@ -151,7 +151,6 @@ class Dataset(data.TabularDataset):
 
         train, valid, test = dataset
 
-        vec = torchtext.vocab.Vectors('glove.6B.300d.txt', cache='data/glove')
         if not args.retro:
             TEXT_FIELD.build_vocab(train)
         else:

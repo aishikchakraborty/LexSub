@@ -112,7 +112,7 @@ class RNNWordnetModel(nn.Module):
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
-    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, cutoffs=[1000, 10000], tie_weights=False, adaptive=False):
+    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, tie_weights=False, adaptive=False):
         super(RNNModel, self).__init__()
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
@@ -165,6 +165,7 @@ class RNNModel(nn.Module):
         emb = self.drop(self.encoder(input))
         output, hidden = self.rnn(emb, hidden)
         output = self.drop(output)
+        decoded = self.decoder(output.view(output.size(0)*output.size(1), output.size(2)))
         if self.adaptive:
             decoded = self.adaptive_softmax.log_prob(output.view(output.size(0)*output.size(1), output.size(2)))
         else:
@@ -186,6 +187,31 @@ class RNNModel(nn.Module):
                     weight.new_zeros(self.nlayers, bsz, self.nhid))
         else:
             return weight.new_zeros(self.nlayers, bsz, self.nhid)
+
+class GloveEncoderModel(nn.Module):
+    """Container module with an encoder, a recurrent module, and a decoder."""
+
+    def __init__(self, ntoken, ninp, pretrained, dist_fn=F.pairwise_distance, dropout=0.5):
+        super(GloveEncoderModel, self).__init__()
+        self.drop = nn.Dropout(dropout)
+        self.encoder = nn.Embedding(ntoken, ninp)
+        self.glove_encoder = nn.Embedding(ntoken, ninp)
+        self.glove_encoder.weight.data.copy_(pretrained)
+        self.glove_encoder.requires_grad=False
+        self.ntoken = ntoken
+        self.dist_fn = dist_fn
+
+    def init_weights(self):
+        initrange = 0.1
+        self.encoder.weight.data.uniform_(-initrange, initrange)
+
+    def forward(self, input):
+        output_dict={}
+        emb = self.drop(self.encoder(input))
+        emb_glove = self.drop(self.glove_encoder(input))
+        output_dict['glove_emb'] = (emb, emb_glove)
+        output_dict['glove_loss'] = torch.mean(self.dist_fn(emb, emb_glove))
+        return output_dict
 
 class WNModel(nn.Module):
     def __init__(self, embedding, emb_dim, wn_dim, antonym_margin=1, dist_fn=F.pairwise_distance, fixed=False, random=False):
@@ -278,3 +304,23 @@ class WNLM(nn.Module):
         # This merges two dictionaries and creates a single dict with fields from
         # both of them.
         return {**lm_out_dict, **wn_out_dict}
+
+class GloveModel(nn.Module):
+    def __init__(self, glove_module, wn_module):
+        super(GloveModel, self).__init__()
+        self.gl = glove_module
+        self.wn = wn_module
+        self.encoder = self.gl.encoder
+
+    def init_weights(self):
+        self.wn.init_weights()
+        self.gl.init_weights()
+
+
+    def forward(self, input, synonyms=None, antonyms=None, hypernyms=None, meronyms=None):
+        gl_out_dict = self.gl(input)
+        wn_out_dict = self.wn(synonyms, antonyms, hypernyms, meronyms)
+
+        # This merges two dictionaries and creates a single dict with fields from
+        # both of them.
+        return {**gl_out_dict, **wn_out_dict}

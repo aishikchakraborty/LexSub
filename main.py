@@ -18,7 +18,7 @@ import csv
 csv.field_size_limit(100000000)
 
 from torchtext import data, datasets
-
+import torchtext
 import csv
 csv.field_size_limit(100000000)
 
@@ -59,6 +59,8 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
+parser.add_argument('--retro', action='store_true',
+                    help='use retrofitting')
 parser.add_argument('--gpu', type=int, default=0,
                     help='use gpu x')
 parser.add_argument('--log-interval', type=int, default=200, metavar='N',
@@ -125,7 +127,6 @@ class Dataset(data.TabularDataset):
                 'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
                 'meronyms': ('meronyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
                 }
-
         suffix = hashlib.md5('{}-{}-{}-{}-{}'.format(version, dataset_dir,
                                                      train_file, valid_file, test_file)
                                             .encode()).hexdigest()
@@ -149,18 +150,28 @@ class Dataset(data.TabularDataset):
             dataset = [data.Dataset(ex, field_dict.values()) for ex in examples]
 
         train, valid, test = dataset
-        TEXT_FIELD.build_vocab(train)
+
+        vec = torchtext.vocab.Vectors('glove.6B.300d.txt', cache='data/glove')
+        if not args.retro:
+            TEXT_FIELD.build_vocab(train)
+        else:
+            vec = torchtext.vocab.Vectors('glove.6B.300d.txt', cache='data/glove')
+            TEXT_FIELD.build_vocab(train, vectors=vec)
         WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
 
         train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
                                                 batch_size=batch_size, device=device,
                                                 shuffle=False, repeat=False, sort=False)
-        return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
-
+        if args.retro:
+            return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
+        else:
+            return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
 dist_fn = lambda x1,x2: 1 - F.cosine_similarity(x1,x2) if args.distance == 'cosine' else F.pairwise_distance(x1,x2)
 
-train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size)), device=device)
-
+if args.retro:
+    train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size)), device=device)
+else:
+    train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size)), device=device)
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
 # train_iter, valid_iter, test_iter = datasets.WikiText103.iters(batch_size=args.batch_size, bptt_len=args.bptt,
@@ -184,15 +195,19 @@ def repackage_hidden(h):
 cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 20000, 76000]
 
 if args.seg:
-    lm_model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout,
-                              cutoffs=cutoffs,
-                              tie_weights=args.tied,
-                              adaptive=args.adaptive).to(device)
+    lm_model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied, args.adaptive).to(device)
     wn_model = model.WNModel(lm_model.encoder, args.emsize, args.wn_hid,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn).to(device)
     model = model.WNLM(lm_model, wn_model).to(device)
+elif args.retro:
+    gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained).to(device)
+    wn_model = model.WNModel(gl_model.encoder, args.emsize, args.wn_hid,
+                             antonym_margin=args.margin,
+                             fixed=args.fixed_wn,
+                             random=args.random_wn).to(device)
+    model = model.GloveModel(gl_model, wn_model).to(device)
 else:
     model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.wn_hid, args.dropout, args.tied, args.adaptive, cutoffs).to(device)
 
@@ -214,7 +229,8 @@ def evaluate(data_source):
     total_loss_ant = 0.
     total_loss_hyp = 0.
     total_loss_mern = 0.
-    hidden = model.init_hidden(args.batch_size)
+    if not args.retro:
+        hidden = model.init_hidden(args.batch_size)
     start_time = time.time()
     with torch.no_grad():
         for i, batch in enumerate(data_source):
@@ -223,16 +239,21 @@ def evaluate(data_source):
             data, targets = batch.text, batch.target
             synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
 
+            if not args.retro:
+                output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
+                output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
+                output = output.view(-1, ntokens)
+                targets = targets.view(-1)
+                hidden = repackage_hidden(hidden)
 
-            output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
-            output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
-            output = output.view(-1, ntokens)
-            targets = targets.view(-1)
-            hidden = repackage_hidden(hidden)
+                loss = output_dict.get('loss_lm', criterion(output, targets))
 
-            loss = output_dict.get('loss_lm', criterion(output, targets))
+            else:
+                output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
+                emb, emb_glove = output_dict['glove_emb']
+                loss = output_dict.get('glove_loss',
+                                        torch.mean(dist_fn(emb, emb_glove)))
             total_loss += loss
-
             if 'syn' in args.lex_rels:
                 emb_syn1, emb_syn2 = output_dict['syn_emb']
                 loss_syn = output_dict.get('loss_syn',
@@ -282,7 +303,8 @@ def train():
     total_loss_mern = 0.
     total_loss_reg = 0.
     start_time = time.time()
-    hidden = model.init_hidden(args.batch_size)
+    if not args.retro:
+        hidden = model.init_hidden(args.batch_size)
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target
         synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
@@ -293,14 +315,20 @@ def train():
 
         optimizer.zero_grad()
 
-        output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
+        if not args.retro:
+            output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
 
-        output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
-        output = output.view(-1, ntokens)
-        targets = targets.view(-1)
-        hidden = repackage_hidden(hidden)
+            output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
+            output = output.view(-1, ntokens)
+            targets = targets.view(-1)
+            hidden = repackage_hidden(hidden)
 
-        loss = output_dict.get('loss_lm', criterion(output, targets))
+            loss = output_dict.get('loss_lm', criterion(output, targets))
+        else:
+            output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
+            emb, emb_glove = output_dict['glove_emb']
+            loss = output_dict.get('glove_loss',
+                                    torch.mean(dist_fn(emb, emb_glove)))
         total_loss = loss
 
         if 'syn' in args.lex_rels:
@@ -377,35 +405,41 @@ def train():
     print()
 
 patience = 0
-lex_rels = '_'.join(args.lex_rels) if len(args.lex_rels) > 0 else 'vanilla'
-model_name = os.path.join(args.save, 'model_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pt')
-emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
-emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.txt')
+lex_rels = '_'.join(args.lex_rels)
+model_name = os.path.join(args.save, 'model_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '_' + str(args.retro)  + '.pt')
+emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '_' + str(args.retro) + '.pkl')
+emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '_' + str(args.retro) + '.txt')
 
 try:
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         train()
-        val_loss, loss_syn, loss_ant, loss_hyp, loss_mer = evaluate(valid_iter)
-        print('-' * 89)
-        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'
-                    .format(epoch, (time.time() - epoch_start_time), val_loss, math.exp(val_loss),
-                                    loss_syn, loss_ant, loss_hyp, loss_mer))
-        print('-' * 89)
-        # Save the model if the validation loss is the best we've seen so far.
-        if not best_val_loss or val_loss < best_val_loss:
+        if not args.retro:
+            val_loss, loss_syn, loss_ant, loss_hyp, loss_mer = evaluate(valid_iter)
+            print('-' * 89)
+            print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'
+                        .format(epoch, (time.time() - epoch_start_time), val_loss, math.exp(val_loss),
+                                        loss_syn, loss_ant, loss_hyp, loss_mer))
+            print('-' * 89)
+            # Save the model if the validation loss is the best we've seen so far.
+            if not best_val_loss or val_loss < best_val_loss:
+                with open(model_name, 'wb') as f:
+                    torch.save(model, f)
+                print('Saving learnt embeddings : %s' % emb_name)
+                pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
+
+                best_val_loss = val_loss
+                patience = 0
+            else:
+                patience += 1
+            scheduler.step()
+            if False and patience > 3:
+                break
+        else:
             with open(model_name, 'wb') as f:
                 torch.save(model, f)
             print('Saving learnt embeddings : %s' % emb_name)
-            pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
-
-            best_val_loss = val_loss
-            patience = 0
-        else:
-            patience += 1
-        scheduler.step()
-        if False and patience > 3:
-            break
+            pickle.dump(model.encoder.weight.data.cpu().numpy(), open(emb_name, 'wb'))
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')
@@ -419,11 +453,12 @@ with open(model_name, 'rb') as f:
 
 
 # Run on test data.
-test_loss, test_syn, test_ant, test_hyp, test_mer = evaluate(test_iter)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'.format(
-    test_loss, math.exp(test_loss), test_syn, test_ant, test_hyp, test_mer))
-print('=' * 89)
+if not args.retro:
+    test_loss, test_syn, test_ant, test_hyp, test_mer = evaluate(test_iter)
+    print('=' * 89)
+    print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'.format(
+        test_loss, math.exp(test_loss), test_syn, test_ant, test_hyp, test_mer))
+    print('=' * 89)
 print('Saving final learnt embeddings ')
 pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
 with open(emb_name_txt, 'w') as f:

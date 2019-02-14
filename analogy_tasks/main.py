@@ -11,7 +11,7 @@ import _pickle as pickle
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--emb', type=str, default='../emb_Vanilla.pkl',
                     help='location of the trained embeddings')
-parser.add_argument('--vocab', type=str, default='../vocab.pkl',
+parser.add_argument('--vocab', type=str, default='../vocab_wikitext-103.pkl',
                     help='location of the vocab')
 parser.add_argument('--analogy-task', action='store_true',
                     help='get Google Analogy Task Results')
@@ -70,7 +70,8 @@ class WordSimilarity():
 
 class AnalogyExperiment():
     def __init__(self):
-        self.vocab = pickle.load(open('../vocab.pkl', 'rb'))
+        self.vocab = pickle.load(open(args.vocab,'rb'))
+        print(self.vocab)
 
     def load_vocab(self):
         self.emb = pickle.load(open(args.emb, 'rb'))
@@ -92,37 +93,44 @@ class AnalogyExperiment():
             if i%1000 == 0:
                 print('Processed ' + str(i+1) + ' test examples')
             try:
-                w1 = self.emb[self.vocab.stoi[w1]].reshape(-1, 1)
+                w1_ = self.vocab.stoi[w1.lower()]
+                w1 = self.emb[self.vocab.stoi[w1.lower()]].view(1, -1)
+
             except:
                 all_present = False
                 # w1 = self.sem_emb[self.['<unk>']].reshape(-1, 1)
             try:
-                w2 = self.emb[self.vocab.stoi[w2]].reshape(-1, 1)
+                w2_ = self.vocab.stoi[w2.lower()]
+                w2 = self.emb[self.vocab.stoi[w2.lower()]].view(1, -1)
             except:
                 all_present = False
                 # w2 = self.sem_emb[self.w2idx['<unk>']].reshape(-1, 1)
             try:
-                w3 = self.sem_emb[self.vocab.stoi[w3]].reshape(-1, 1)
+                w3_ = self.vocab.stoi[w3.lower()]
+                w3 = self.emb[self.vocab.stoi[w3.lower()]].view(1, -1)
             except:
                 all_present = False
                 # w3 = self.sem_emb[self.w2idx['<unk>']].reshape(-1, 1)
 
             try:
-                w4 = self.vocab.stoi[w4]
+                w4_ = self.vocab.stoi[w4.lower()]
+                w4 = self.vocab.stoi[w4.lower()]
             except:
                 all_present = False
                 # w4 = self.w2idx['<unk>']
             if all_present:
-                sim_all = np.matmul(self.emb, np.concatenate((w1, w2, w3), axis=1))
-                cos_add = sim_all[:,1] + sim_all[:,2] - sim_all[:,0]
-                for wi in (w1, w2, w3):
+
+                cos_add = F.cosine_similarity(w2, self.emb, dim=1) + F.cosine_similarity(w3, self.emb, dim=1) - F.cosine_similarity(w1, self.emb, dim=1) #vocab, emsize
+                # sim_all = np.matmul(self.emb, np.concatenate((w1, w2, w3), axis=1))
+                # cos_add = sim_all[:,1] + sim_all[:,2] - sim_all[:,0]
+                for wi in (w1_, w2_, w3_):
                     try:
-                        w_id = self.vocab.stoi[wi]
-                        cos_add[w_id] = -np.inf
+                        # w_id = self.vocab.stoi[wi]
+                        cos_add[wi] = -np.inf
 
                     except KeyError:
                         missing_words += 1
-                best_idx = np.argmax(cos_add)
+                best_idx = np.argmax(cos_add.cpu().numpy())
                 if best_idx == w4:
                     correct_pred += 1
                 total_examples += 1

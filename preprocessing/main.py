@@ -14,14 +14,16 @@ import string
 stopwords = nltk.corpus.stopwords.words('english')
 
 parser = argparse.ArgumentParser(description='Preprocessing for finding synonym/antonym relations')
-parser.add_argument('--data', type=str, default='../data/wikitext-2',
+parser.add_argument('--data', type=str, default='../data/glove',
                     help='location of the data corpus')
-parser.add_argument('--out-dir', type=str, default='../data/wikitext-2/annotated',
+parser.add_argument('--out-dir', type=str, default='../data/glove/annotated',
                     help='location of the output directory')
-parser.add_argument('--bptt', type=int, default=35,
+parser.add_argument('--bptt', type=int, default=1,
                     help='bptt length')
 parser.add_argument('--batch-size', type=int, default=20,
                     help='Batch size')
+parser.add_argument('--retro', action='store_true',
+                    help='In case of retrofitting pretrained glove vectors')
 parser.add_argument('--max-pair', type=int, default=100,
                     help='max no of pairs of wordnet relations')
 
@@ -47,7 +49,8 @@ def add_word(word):
 
 def create_vocab(in_path):
     with codecs.open(in_path, 'r', encoding="utf8") as f:
-        add_word('<eos>')
+        if not args.retro:
+            add_word('<eos>')
         for line in f:
             words = line.split()
             for w in words:
@@ -66,7 +69,7 @@ def get_wordnet_pos(treebank_tag):
         return None
 
 
-def get_lexical_relations(word, word2idx):
+def get_lexical_relations(word, pos_tag, word2idx):
     synonyms = set([]); antonyms = set([]);
     hypernyms = set([]); hyponyms = set([]);
     meronyms = set([]); holonyms = set([])
@@ -146,11 +149,11 @@ def create_corpus(in_path, out_path):
         tokens = []
         for line in f:
             words = line.split()
-            words = words + ['<eos>']
+            if not args.retro:
+                words = words + ['<eos>']
             tokens.extend(words)
 
-        num_batches = math.ceil(len(tokens)/args.batch_size)
-
+        num_batches = int(math.ceil(len(tokens)/args.batch_size))
         batched_input = []
         for batch in range(0, len(tokens), num_batches):
             batched_input.append(tokens[batch:batch + num_batches])
@@ -166,7 +169,10 @@ def create_corpus(in_path, out_path):
                 meronyms = set([])
                 holonyms = set([])
                 text = batched_input[k][i:i+seq_len]
-                target = batched_input[k][i+1:i+1+seq_len]
+                if args.retro:
+                    target = []
+                else:
+                    target = batched_input[k][i+1:i+1+seq_len]
 
                 preprocessed_text = preprocessing(text)
                 # use simple nltk pos tagger for now
@@ -177,7 +183,7 @@ def create_corpus(in_path, out_path):
                     if p is None:
                         continue
                     word_syn, word_ant, word_hyp, word_hypo, \
-                        word_mer, word_hol = get_lexical_relations(w, word2idx)
+                        word_mer, word_hol = get_lexical_relations(w, p, word2idx)
                     synonyms.update(word_syn)
                     antonyms.update(word_ant)
                     hypernyms.update(word_hyp)
@@ -221,16 +227,25 @@ def create_corpus(in_path, out_path):
                 f1.write(str(json.dumps(output)) + '\n')
                 f1.flush()
 
-create_vocab(os.path.join(args.data, 'train.txt'))
+if args.retro:
+    create_vocab(os.path.join(args.data, 'vocab.txt'))
+else:
+    create_vocab(os.path.join(args.data, 'train.txt'))
 # create_vocab(os.path.join(args.data, 'test.txt'))
 # create_vocab(os.path.join(args.data, 'valid.txt'))
 
 out_dir = os.path.join(args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size))
 if not os.path.exists(out_dir):
     os.mkdir(out_dir)
-print('Creating train files')
-create_corpus(os.path.join(args.data, 'train.txt'), os.path.join(out_dir, 'train.txt'))
-print('Creating test files')
-create_corpus(os.path.join(args.data, 'test.txt'), os.path.join(out_dir, 'test.txt'))
-print('Creating valid files')
-create_corpus(os.path.join(args.data, 'valid.txt'), os.path.join(out_dir, 'valid.txt'))
+if not args.retro:
+    print('Creating train files')
+    create_corpus(os.path.join(args.data, 'train.txt'), os.path.join(out_dir, 'train.txt'))
+    print('Creating test files')
+    create_corpus(os.path.join(args.data, 'test.txt'), os.path.join(out_dir, 'test.txt'))
+    print('Creating valid files')
+    create_corpus(os.path.join(args.data, 'valid.txt'), os.path.join(out_dir, 'valid.txt'))
+else:
+    print('Creating train files')
+    create_corpus(os.path.join(args.data, 'vocab.txt'), os.path.join(out_dir, 'train.txt'))
+    create_corpus(os.path.join(args.data, 'vocab.txt'), os.path.join(out_dir, 'test.txt'))  # bogus files
+    create_corpus(os.path.join(args.data, 'vocab.txt'), os.path.join(out_dir, 'valid.txt')) # bogus files

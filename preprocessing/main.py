@@ -169,6 +169,8 @@ def create_corpus(in_path, out_path):
                 meronyms = set([])
                 holonyms = set([])
                 text = batched_input[k][i:i+seq_len]
+                if len(text) == 0:
+                    continue
                 if args.retro:
                     target = []
                 else:

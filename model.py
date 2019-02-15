@@ -209,6 +209,7 @@ class GloveEncoderModel(nn.Module):
         output_dict={}
         emb = self.drop(self.encoder(input))
         emb_glove = self.drop(self.glove_encoder(input))
+        emb, emb_glove = torch.squeeze(emb, 0), torch.squeeze(emb_glove, 0)
         output_dict['glove_emb'] = (emb, emb_glove)
         output_dict['glove_loss'] = torch.mean(self.dist_fn(emb, emb_glove))
         return output_dict
@@ -260,7 +261,7 @@ class WNModel(nn.Module):
             emb_syn2 = self.syn_proj(self.embedding(synonyms[:, 1]))
             syn_mask = 1 - (synonyms[:,0] == self.pad_idx).float()
             syn_len = torch.sum(syn_mask)
-            output_dict['loss_syn'] = torch.sum(self.dist_fn(emb_syn1, emb_syn2) * syn_mask)/syn_len
+            output_dict['loss_syn'] = torch.sum(self.dist_fn(emb_syn1, emb_syn2) * syn_mask)/max(syn_len, 1)
             output_dict['syn_emb'] = (emb_syn1, emb_syn2)
 
         if antonyms is not None:
@@ -268,7 +269,7 @@ class WNModel(nn.Module):
             emb_ant2 = self.syn_proj(self.embedding(antonyms[:, 1]))
             ant_mask = 1 - (antonyms[:,0] == self.pad_idx).float()
             ant_len = torch.sum(ant_mask)
-            output_dict['loss_ant'] = torch.sum(F.relu(self.antonym_margin - self.dist_fn(emb_ant1, emb_ant2)) * ant_mask)/ant_len
+            output_dict['loss_ant'] = torch.sum(F.relu(self.antonym_margin - self.dist_fn(emb_ant1, emb_ant2)) * ant_mask)/max(ant_len, 1)
             output_dict['ant_emb'] = (emb_ant1, emb_ant2)
 
         if hypernyms is not None:
@@ -277,16 +278,18 @@ class WNModel(nn.Module):
             emb_hypn1 = self.hypn_rel(emb_hypn1)
             hyp_mask = 1 - (hypernyms[:,0] == self.pad_idx).float()
             hyp_len = torch.sum(hyp_mask)
-            output_dict['loss_hyp'] = torch.sum(self.dist_fn(emb_hypn1, emb_hypn2) * hyp_mask)/hyp_len
+            output_dict['loss_hyp'] = torch.sum(self.dist_fn(emb_hypn1, emb_hypn2) * hyp_mask)/max(hyp_len, 1)
             output_dict['hyp_emb'] = (emb_hypn1, emb_hypn2)
 
         if meronyms is not None:
+            # import pdb;pdb.set_trace()
+
             emb_mern1 = self.mern_proj(self.embedding(meronyms[:, 0]))
             emb_mern2 = self.mern_proj(self.embedding(meronyms[:, 1]))
             emb_mern1 = self.mern_rel(emb_mern1)
             mer_mask = 1 - (meronyms[:,0] == self.pad_idx).float()
             mer_len = torch.sum(mer_mask)
-            output_dict['loss_mer'] = torch.sum(self.dist_fn(emb_mern1, emb_mern2) * mer_mask)/mer_len
+            output_dict['loss_mer'] = torch.sum(self.dist_fn(emb_mern1, emb_mern2) * mer_mask)/max(mer_len, 1)
             output_dict['mer_emb'] = (emb_mern1, emb_mern2)
 
         return output_dict

@@ -63,7 +63,7 @@ parser.add_argument('--retro', action='store_true',
                     help='use retrofitting')
 parser.add_argument('--gpu', type=int, default=0,
                     help='use gpu x')
-parser.add_argument('--log-interval', type=int, default=200, metavar='N',
+parser.add_argument('--log-interval', type=int, default=2000, metavar='N',
                     help='report interval')
 parser.add_argument('--save', type=str, default='models/',
                     help='path to save the final model')
@@ -205,7 +205,7 @@ if args.seg:
     model = model.WNLM(lm_model, wn_model).to(device)
 elif args.retro:
     gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained).to(device)
-    wn_model = model.WNModel(gl_model.encoder, args.emsize, args.wn_hid,
+    wn_model = model.WNModel(gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn).to(device)
@@ -287,6 +287,8 @@ def evaluate(data_source):
                 total_loss_hyp += loss_hyp
 
             if 'mer' in args.lex_rels:
+                # import pdb
+                # pdb.set_trace()
                 if 'loss_mer' in output_dict:
                     loss_mer = output_dict['loss_mer']
                 else:
@@ -424,6 +426,7 @@ try:
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         train()
+
         if not args.retro:
             val_loss, loss_syn, loss_ant, loss_hyp, loss_mer = evaluate(valid_iter)
             print('-' * 89)
@@ -446,6 +449,7 @@ try:
             if False and patience > 3:
                 break
         else:
+            print('Saving Model')
             with open(model_name, 'wb') as f:
                 torch.save(model, f)
             print('Saving learnt embeddings : %s' % emb_name)
@@ -459,7 +463,8 @@ with open(model_name, 'rb') as f:
     model = torch.load(f)
     # after load the rnn params are not a continuous chunk of memory
     # this makes them a continuous chunk, and will speed up forward pass
-    model.rnn.flatten_parameters()
+    if not args.retro:
+        model.rnn.flatten_parameters()
 
 
 # Run on test data.

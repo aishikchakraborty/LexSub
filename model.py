@@ -282,8 +282,6 @@ class WNModel(nn.Module):
             output_dict['hyp_emb'] = (emb_hypn1, emb_hypn2)
 
         if meronyms is not None:
-            # import pdb;pdb.set_trace()
-
             emb_mern1 = self.mern_proj(self.embedding(meronyms[:, 0]))
             emb_mern2 = self.mern_proj(self.embedding(meronyms[:, 1]))
             emb_mern1 = self.mern_rel(emb_mern1)

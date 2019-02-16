@@ -116,6 +116,7 @@ def get_lexical_relations(word, pos_tag, word2idx):
                     tup = (word, name)
                     if name in word2idx:
                         hyponyms.add(tup)
+                        hypernyms.add((name, word))
 
         mer = syn.member_meronyms() + syn.part_meronyms() + syn.substance_meronyms()
         for m in mer:
@@ -138,6 +139,7 @@ def get_lexical_relations(word, pos_tag, word2idx):
                 tup = (name, word)
                 if name in word2idx:
                     holonyms.add(tup)
+                    meronyms.add((word, name))
 
     return synonyms, antonyms, hypernyms, hyponyms, meronyms, holonyms
 
@@ -239,6 +241,7 @@ else:
 out_dir = os.path.join(args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size))
 if not os.path.exists(out_dir):
     os.mkdir(out_dir)
+print("Output Dir: %s" % out_dir)
 if not args.retro:
     print('Creating train files')
     create_corpus(os.path.join(args.data, 'train.txt'), os.path.join(out_dir, 'train.txt'))

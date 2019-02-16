@@ -6,6 +6,7 @@
 #SBATCH --mail-user=kushal.arora@mail.mcgill.ca
 #SBATCH --time=23:00:00
 #SBATCH --gres=gpu:1
+#SBATCH --nodes=1
 ###########################
 
 set -ex

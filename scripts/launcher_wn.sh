@@ -11,7 +11,13 @@
 
 set -ex
 
-cmd="python -u main.py --cuda --save-emb ${output_dir} --save ${output_dir}"
+source activate lm_wn
+
+export emb_size="${emb_size:=300}"
+export wnhid="${wnhid:=100}"
+export distance="${distance:=pairwise}"
+
+cmd="python -u main.py --cuda --save-emb ${output_dir} --save ${output_dir} --log-interval 200 "
 if [ -n "$lr" ]; then
     cmd+=" --lr $lr"
 fi
@@ -92,12 +98,16 @@ if [ -n "$random_wn" ]; then
     cmd+=" --random_wn"
 fi
 
+if [ -n "$lower" ]; then
+    cmd+=" --lower"
+fi
 $cmd
 
 emb_filename=emb_${data}_${mdl}_${emb_size}_${nhid}_${wnhid}_${distance}
 
 cd analogy_tasks;
 python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../vocab_${data}.pkl
+python main.py  --analogy-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../vocab_${data}.pkl
 
 cd -;
 export emb_filetxt=${output_dir}/${emb_filename}.txt

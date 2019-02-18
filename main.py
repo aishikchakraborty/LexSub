@@ -83,6 +83,7 @@ parser.add_argument('--reg', action='store_true', help='Regularize.')
 parser.add_argument('--seg', action='store_true', help='Segregated WN and LM model.')
 parser.add_argument('--fixed_wn', action='store_true', help='Fixed WN proj matrices to identity matrix.')
 parser.add_argument('--random_wn', action='store_true', help='Fix random WN proj matrix and not learn it.')
+parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -117,8 +118,8 @@ class Dataset(data.TabularDataset):
                 return ['<pad>', '<pad>']
             return [x.split(',') for x in prop_list]
 
-        TEXT_FIELD = data.Field(batch_first=False, include_lengths=False)
-        WORDNET_TEXT_FIELD = data.Field(fix_length=2)
+        TEXT_FIELD = data.Field(batch_first=False, include_lengths=False, lower=args.lower)
+        WORDNET_TEXT_FIELD = data.Field(fix_length=2, lower=args.lower)
         field_dict = {
                 'text': ('text', TEXT_FIELD),
                 'target': ('target', TEXT_FIELD),
@@ -127,8 +128,8 @@ class Dataset(data.TabularDataset):
                 'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
                 'meronyms': ('meronyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
                 }
-        suffix = hashlib.md5('{}-{}-{}-{}-{}'.format(version, dataset_dir,
-                                                     train_file, valid_file, test_file)
+        suffix = hashlib.md5('{}-{}-{}-{}-{}-lower_{}'.format(version, dataset_dir,
+                                                     train_file, valid_file, test_file, args.lower)
                                             .encode()).hexdigest()
 
         examples_path = os.path.join(dataset_dir, '{}.pkl'.format(suffix))
@@ -151,11 +152,11 @@ class Dataset(data.TabularDataset):
 
         train, valid, test = dataset
 
-        if not args.retro:
-            TEXT_FIELD.build_vocab(train)
-        else:
+        if args.retro:
             vec = torchtext.vocab.Vectors('glove.6B.300d.txt', cache='data/glove')
             TEXT_FIELD.build_vocab(train, vectors=vec)
+        else:
+            TEXT_FIELD.build_vocab(train)
         WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
 
         train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
@@ -219,8 +220,6 @@ optimizer = torch.optim.Adam(model.parameters(), lr=lr) if args.optim == 'adam' 
 milestones=[4,6,8] if args.data == 'wikitext-103' else [10, 25, 35, 45]
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
 
-pickle.dump(vocab, open('vocab_' + str(args.data) + '.pkl', 'wb'))
-print('Vocab Saved')
 
 print('Lex Rel List: {}'.format(args.lex_rels))
 def evaluate(data_source):
@@ -323,7 +322,12 @@ def train():
 
         optimizer.zero_grad()
 
-        if not args.retro:
+        if args.retro:
+            output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
+            emb, emb_glove = output_dict['glove_emb']
+            loss = output_dict.get('glove_loss',
+                                    torch.mean(dist_fn(emb, emb_glove)))
+        else:
             output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
 
             output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
@@ -332,11 +336,7 @@ def train():
             hidden = repackage_hidden(hidden)
 
             loss = output_dict.get('loss_lm', criterion(output, targets))
-        else:
-            output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
-            emb, emb_glove = output_dict['glove_emb']
-            loss = output_dict.get('glove_loss',
-                                    torch.mean(dist_fn(emb, emb_glove)))
+
         total_loss = loss
 
         if 'syn' in args.lex_rels:
@@ -415,10 +415,15 @@ def train():
     print()
 
 patience = 0
-lex_rels = '_'.join(args.lex_rels)
-model_name = os.path.join(args.save, 'model_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '_' + str(args.retro)  + '.pt')
-emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '_' + str(args.retro) + '.pkl')
-emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '_' + str(args.retro) + '.txt')
+lex_rels = '_'.join(args.lex_rels) if len(args.lex_rels) > 0 else 'vanilla'
+model_name = os.path.join(args.save, 'model_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_retro' if args.retro else '') + '.pt')
+emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_retro' if args.retro else '') + '.pkl')
+emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_retro' if args.retro else '') + '.txt')
+
+
+vocab_name = os.path.join(args.save, 'vocab_' + args.data + '.pkl')
+pickle.dump(vocab, open(vocab_name, 'wb'))
+print('Vocab Saved')
 
 try:
     for epoch in range(1, args.epochs+1):

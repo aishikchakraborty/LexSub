@@ -84,6 +84,7 @@ parser.add_argument('--seg', action='store_true', help='Segregated WN and LM mod
 parser.add_argument('--fixed_wn', action='store_true', help='Fixed WN proj matrices to identity matrix.')
 parser.add_argument('--random_wn', action='store_true', help='Fix random WN proj matrix and not learn it.')
 parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
+parser.add_argument('--extend_wn', action='store_true', help='This flag allows the final embedding to be concatenation of wn embedding and lm embedding.')
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -195,18 +196,23 @@ def repackage_hidden(h):
 cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 20000, 76000]
 
 if args.seg:
-    lm_model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout,
-                              cutoffs=cutoffs,
-                              tie_weights=args.tied,
-                              adaptive=args.adaptive).to(device)
-    wn_model = model.WNModel(lm_model.encoder, args.emsize, args.wn_hid, pad_idx,
+    wn_offset = args.emsize if args.extend_wn else 0
+    em_dim = args.emsize + len(args.lex_rels) * args.wn_hid
+    lm_model = model.RNNModel(args.model, ntokens, em_dim, args.nhid, args.nlayers, args.dropout,
+                              cutoffs=cutoffs, tie_weights=args.tied, adaptive=args.adaptive,
+                              proj_lm=args.extend_wn, lm_dim=args.emsize,
+                              fixed=args.fixed_wn, random=args.random_wn).to(device)
+    wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
+                             wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn).to(device)
     model = model.WNLM(lm_model, wn_model).to(device)
+
 elif args.retro:
     gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained).to(device)
-    wn_model = model.WNModel(gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
+    wn_model = model.WNModel(lex_rels, gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
+                             wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn).to(device)

@@ -197,7 +197,8 @@ cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 20000, 7600
 
 if args.seg:
     wn_offset = args.emsize if args.extend_wn else 0
-    em_dim = args.emsize + len(args.lex_rels) * args.wn_hid
+    em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
+
     lm_model = model.RNNModel(args.model, ntokens, em_dim, args.nhid, args.nlayers, args.dropout,
                               cutoffs=cutoffs, tie_weights=args.tied, adaptive=args.adaptive,
                               proj_lm=args.extend_wn, lm_dim=args.emsize,
@@ -211,8 +212,8 @@ if args.seg:
 
 elif args.retro:
     gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained).to(device)
-    wn_model = model.WNModel(lex_rels, gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
-                             wn_offset=wn_offset,
+    wn_model = model.WNModel(args.lex_rels, gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
+                             wn_offset=0,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn).to(device)
@@ -318,6 +319,7 @@ def train():
     start_time = time.time()
     if not args.retro:
         hidden = model.init_hidden(args.batch_size)
+
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target
         synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms

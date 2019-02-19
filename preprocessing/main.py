@@ -26,6 +26,8 @@ parser.add_argument('--retro', action='store_true',
                     help='In case of retrofitting pretrained glove vectors')
 parser.add_argument('--max-pair', type=int, default=100,
                     help='max no of pairs of wordnet relations')
+parser.add_argument('--lower', action='store_true',
+                    help='Lowercase lemmas from wordnet.')
 
 args = parser.parse_args()
 word2idx = {}
@@ -81,15 +83,19 @@ def get_lexical_relations(word, pos_tag, word2idx):
     for syn in synsets:
         for lemma in syn.lemmas():
             name = lemma.name()
-            if name == word:
-                continue
+
+            if args.lower:
+                name = name.lower()
 
             tup = (word, name)
-            if name in word2idx:
+            if name != word and name in word2idx:
                 synonyms.add(tup)
 
             for ant in lemma.antonyms():
                 name = ant.name()
+                if args.lower:
+                    name = name.lower()
+
                 tup = (word, name)
                 if name in word2idx:
                     antonyms.add(tup)
@@ -99,6 +105,9 @@ def get_lexical_relations(word, pos_tag, word2idx):
             for h in hyp:
                 for lemma in h.lemmas():
                     name = lemma.name()
+                    if args.lower:
+                        name = name.lower()
+
                     if name == word:
                         continue
 
@@ -110,6 +119,9 @@ def get_lexical_relations(word, pos_tag, word2idx):
             for h in hyp:
                 for lemma in h.lemmas():
                     name = lemma.name()
+                    if args.lower:
+                        name = name.lower()
+
                     if name == word:
                         continue
 
@@ -122,6 +134,9 @@ def get_lexical_relations(word, pos_tag, word2idx):
         for m in mer:
             for lemma in m.lemmas():
                 name = lemma.name()
+                if args.lower:
+                    name = name.lower()
+
                 if name == word:
                     continue
 
@@ -133,6 +148,9 @@ def get_lexical_relations(word, pos_tag, word2idx):
         for m in mer:
             for lemma in m.lemmas():
                 name = lemma.name()
+                if args.lower:
+                    name = name.lower()
+
                 if name == word:
                     continue
 
@@ -186,6 +204,7 @@ def create_corpus(in_path, out_path):
                     p = get_wordnet_pos(p[1])
                     if p is None:
                         continue
+
                     word_syn, word_ant, word_hyp, word_hypo, \
                         word_mer, word_hol = get_lexical_relations(w, p, word2idx)
                     synonyms.update(word_syn)

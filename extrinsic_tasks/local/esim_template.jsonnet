@@ -20,14 +20,14 @@
                 "tokens": {
                     "pretrained_file": "${emb_filetxt}",
                     "type": "embedding",
-                    "embedding_dim": 300,
+                    "embedding_dim": ${task_emb_size},
                     "trainable": false
                 }
             }
         },
         "encoder": {
             "type": "lstm",
-            "input_size": 300,
+            "input_size": ${task_emb_size},
             "hidden_size": 300,
             "num_layers": 1,
             "bidirectional": true

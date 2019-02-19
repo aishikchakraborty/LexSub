@@ -16,6 +16,7 @@ source activate lm_wn
 export emb_size="${emb_size:=300}"
 export wnhid="${wnhid:=100}"
 export distance="${distance:=pairwise}"
+export task_emb_size=${emb_size}
 
 cmd="python -u main.py --cuda --save-emb ${output_dir} --save ${output_dir} --log-interval 200 "
 if [ -n "$lr" ]; then
@@ -74,16 +75,29 @@ if [ -n "$adaptive" ]; then
     cmd+=" --adaptive"
 fi
 
+if [ -n "$extend_wn" ]; then
+    cmd+=" --extend_wn"
+fi
+
 if [ -n "$syn" ]; then
     cmd+=" -l syn"
+    if [ -n "$extend_wn" ]; then
+        task_emb_size=`expr ${task_emb_size} + ${wnhid}`
+    fi
 fi
 
 if [ -n "$hyp" ]; then
     cmd+=" -l hyp"
+    if [ -n "$extend_wn" ]; then
+        task_emb_size=`expr ${task_emb_size} + ${wnhid}`
+    fi
 fi
 
 if [ -n "$mer" ]; then
     cmd+=" -l mer"
+    if [ -n "$extend_wn" ]; then
+        task_emb_size=`expr ${task_emb_size} + ${wnhid}`
+    fi
 fi
 
 if [ -n "$seg" ]; then
@@ -101,13 +115,15 @@ fi
 if [ -n "$lower" ]; then
     cmd+=" --lower"
 fi
+
+
 $cmd
 
 emb_filename=emb_${data}_${mdl}_${emb_size}_${nhid}_${wnhid}_${distance}
 
 cd analogy_tasks;
-python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../vocab_${data}.pkl
-python main.py  --analogy-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../vocab_${data}.pkl
+python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
+python main.py  --analogy-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
 
 cd -;
 export emb_filetxt=${output_dir}/${emb_filename}.txt

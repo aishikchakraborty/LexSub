@@ -28,7 +28,7 @@
             "tokens": {
                 "type": "embedding",
                 "pretrained_file": "${emb_filetxt}",
-                "embedding_dim": 300,
+                "embedding_dim": ${task_emb_size},
                 "trainable": false
             },
             "token_characters": {
@@ -51,7 +51,7 @@
     "phrase_layer": {
       "type": "lstm",
       "bidirectional": true,
-      "input_size": 400,
+      "input_size": `expr ${task_emb_size} + 100`,
       "hidden_size": 100,
       "num_layers": 1,
       "dropout": 0.2

@@ -20,14 +20,14 @@
         "tokens": {
             "pretrained_file": "${emb_filetxt}",
             "type": "embedding",
-            "embedding_dim": 300,
+            "embedding_dim": ${task_emb_size},
             "trainable": false
         }
       }
     },
     "embedding_dropout": 0.25,
     "pre_encode_feedforward": {
-        "input_dim": 300,
+        "input_dim": ${task_emb_size},
         "num_layers": 1,
         "hidden_dims": [300],
         "activations": ["relu"],

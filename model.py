@@ -114,9 +114,7 @@ class RNNWordnetModel(nn.Module):
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
-    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, vocab_freq,
-                    dropout=0.5, cutoffs=[1000, 10000], tie_weights=False, adaptive=False,
-                    proj_lm=False, lm_dim=None, fixed=False, random=False, nce=False, nce_loss='nce'):
+    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, cutoffs=[1000, 10000], tie_weights=False, adaptive=False):
         super(RNNModel, self).__init__()
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
@@ -440,21 +438,20 @@ class GloveEncoderModel(nn.Module):
 
     def forward(self, input):
         output_dict={}
-        emb = self.encoder(input)
-        emb_glove = self.glove_encoder[input]
+        emb = self.drop(self.encoder(input))
+        emb_glove = self.drop(self.glove_encoder(input))
         emb, emb_glove = torch.squeeze(emb, 0), torch.squeeze(emb_glove, 0)
         output_dict['glove_emb'] = (emb, emb_glove)
         output_dict['glove_loss'] = torch.mean(self.dist_fn(emb, emb_glove))
         return output_dict
 
 class WNModel(nn.Module):
-    def __init__(self, lex_rels, embedding, emb_dim, wn_dim, pad_idx, wn_offset=0, antonym_margin=1, dist_fn=F.pairwise_distance, fixed=False, random=False):
+    def __init__(self, embedding, emb_dim, wn_dim, pad_idx, antonym_margin=1, dist_fn=F.pairwise_distance, fixed=False, random=False):
         super(WNModel, self).__init__()
         self.embedding = embedding
         self.emb_dim = emb_dim
         self.wn_dim = wn_dim
         self.pad_idx = pad_idx
-        self.lex_rels = lex_rels
 
         if 'syn' in lex_rels:
             self.syn_proj = nn.Linear(emb_dim, wn_dim, bias=False)
@@ -529,7 +526,9 @@ class WNModel(nn.Module):
             output_dict['loss_hyp'] = torch.sum(self.dist_fn(emb_hypn1, emb_hypn2) * hyp_mask)/max(hyp_len, 1)
             output_dict['hyp_emb'] = (emb_hypn1, emb_hypn2)
 
-        if 'mer' in self.lex_rels and meronyms is not None:
+        if meronyms is not None:
+            # import pdb;pdb.set_trace()
+
             emb_mern1 = self.mern_proj(self.embedding(meronyms[:, 0]))
             emb_mern2 = self.mern_proj(self.embedding(meronyms[:, 1]))
             emb_mern1 = self.mern_rel(emb_mern1)

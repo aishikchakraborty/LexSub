@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.onnx
 import _pickle as pickle
-# from tqdm import tqdm
+from tqdm import tqdm
 
 import model
 
@@ -293,6 +293,8 @@ def evaluate(data_source):
                 total_loss_hyp += loss_hyp
 
             if 'mer' in args.lex_rels:
+                # import pdb
+                # pdb.set_trace()
                 if 'loss_mer' in output_dict:
                     loss_mer = output_dict['loss_mer']
                 else:
@@ -434,7 +436,7 @@ pickle.dump(vocab, open(vocab_name, 'wb'))
 print('Vocab Saved')
 
 try:
-    for epoch in range(1, args.epochs+1):
+    for epoch in tqdm(range(1, args.epochs+1)):
         epoch_start_time = time.time()
         train()
 
@@ -465,6 +467,7 @@ try:
                 torch.save(model, f)
             print('Saving learnt embeddings : %s' % emb_name)
             pickle.dump(model.encoder.weight.data.cpu().numpy(), open(emb_name, 'wb'))
+            print(model.encoder.weight.data.cpu().numpy().shape)
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')

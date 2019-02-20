@@ -75,8 +75,6 @@ class AnalogyExperiment():
 
     def load_vocab(self):
         self.emb = pickle.load(open(args.emb, 'rb'))
-        print(self.emb.shape)
-        self.emb = torch.FloatTensor(self.emb).cuda()
 
     def cossim(self, v1, v2):
         dot = v1.dot(v2)
@@ -84,7 +82,6 @@ class AnalogyExperiment():
 
     def load_google_dataset(self):
         f = open('unsup_datasets/googleanalogytestset.csv', 'r')
-        f1 = open('analogy_output.txt', 'w')
         data_reader = csv.reader(f, delimiter=',')
         missing_words = 0
         correct_pred = 0
@@ -93,7 +90,6 @@ class AnalogyExperiment():
         for i, row in enumerate(data_reader):
             all_present = True
             w1, w2, w3, w4 = row[0], row[1], row[2], row[3]
-            w1__, w2__, w3__, w4__ = row[0], row[1], row[2], row[3]
             if i%1000 == 0:
                 print('Processed ' + str(i+1) + ' test examples')
             try:
@@ -133,9 +129,6 @@ class AnalogyExperiment():
                     except KeyError:
                         missing_words += 1
                 best_idx = np.argmax(cos_add.cpu().numpy())
-                f1.write(w1__ + ',' + w2__ + ',' + w3__ + ',' + w4__ + ',')
-                f1.write(self.vocab.itos[best_idx] + '\n')
-                f1.flush()
                 if best_idx == w4:
                     correct_pred += 1
                 total_examples += 1

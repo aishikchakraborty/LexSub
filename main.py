@@ -293,8 +293,6 @@ def evaluate(data_source):
                 total_loss_hyp += loss_hyp
 
             if 'mer' in args.lex_rels:
-                # import pdb
-                # pdb.set_trace()
                 if 'loss_mer' in output_dict:
                     loss_mer = output_dict['loss_mer']
                 else:

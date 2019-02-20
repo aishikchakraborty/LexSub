@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=rrg-dprecup
-#SBATCH --ntasks=8
+#SBATCH --ntasks=1
 #SBATCH --mem=30000M
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=kushal.arora@mail.mcgill.ca
@@ -127,7 +127,7 @@ python main.py  --analogy-task --emb ../${output_dir}/${emb_filename}.pkl --voca
 
 cd -;
 export emb_filetxt=${output_dir}/${emb_filename}.txt
-
+export bidaf_input_size=$(expr ${task_emb_size} + 100)
 for task in sst esim bidaf
 do
     task_file=$(mktemp ${output_dir}/${task}-${emb_filename}.XXXXXX)

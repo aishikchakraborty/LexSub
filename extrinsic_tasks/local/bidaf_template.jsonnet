@@ -51,7 +51,7 @@
     "phrase_layer": {
       "type": "lstm",
       "bidirectional": true,
-      "input_size": `expr ${task_emb_size} + 100`,
+      "input_size": ${bidaf_input_size},
       "hidden_size": 100,
       "num_layers": 1,
       "dropout": 0.2

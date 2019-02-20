@@ -192,7 +192,7 @@ def create_corpus(in_path, out_path):
                 if len(text) == 0:
                     continue
                 if args.retro:
-                    target = []
+                    target = text
                 else:
                     target = batched_input[k][i+1:i+1+seq_len]
 

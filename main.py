@@ -12,6 +12,7 @@ import torch.nn.functional as F
 import torch.onnx
 import _pickle as pickle
 from tqdm import tqdm
+# import dill
 
 import model
 
@@ -180,23 +181,25 @@ class Dataset(data.TabularDataset):
 
         train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
                                                 batch_size=batch_size, device=device,
-                                                shuffle=bool(args.model != 'rnn'), repeat=False, sort=False)
-
-        return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
-
+                                                shuffle=False, repeat=False, sort=False)
+        if args.retro:
+            return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
+        else:
+            return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
 
 def dist_fn(x1, x2):
     if args.distance == 'cosine':
-        return  1 - F.cosine_similarity(x1,x2)
-    elif args.distance == 'pairwise':
+        return 1 - F.cosine_similarity(x1,x2)
+    else:
         return F.pairwise_distance(x1, x2)
 
-annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)
-train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
-train_iter = [x for x in train_iter]
-valid_iter = [x for x in valid_iter]
-test_iter = [x for x in test_iter]
+# dist_fn = lambda x1,x2: 1 - F.cosine_similarity(x1,x2) if args.distance == 'cosine' else torch.sum(torch.pow(x1-x2, 2), 1)
 
+if args.retro:
+    train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size)), device=device)
+    print(pretrained.shape)
+else:
+    train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size)), device=device)
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
 # train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
@@ -240,9 +243,9 @@ elif args.retro:
     wn_model = model.WNModel(gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
-                             random=args.random_wn).to(device)
-
-    model = model.WNLM(lm_model, wn_model).to(device)
+                             random=args.random_wn,
+                             ).to(device)
+    model = model.GloveModel(gl_model, wn_model).to(device)
 else:
     raise ValueError('Illegal model type: %s. Options are [rnn, cbow, retro]' % args.model)
 
@@ -250,11 +253,16 @@ else:
 
 criterion = nn.NLLLoss()
 
-optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
-milestones=[100] if args.optim != 'sgd' else \
-            ([3,6,7] if args.data == 'wikitext-103' else \
-                [10, 25, 35, 45]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
-print(milestones)
+optimizer = torch.optim.Adam(model.parameters(), lr=lr) if args.optim == 'adam' else torch.optim.SGD(model.parameters(), lr=lr)
+if args.data == 'wikitext-103':
+    milestones=[4,6,8]
+elif args.data == 'glove':
+    milestones=[6, 10, 14]
+else:
+    milestones=[10, 25, 35, 45]
+
+# milestones=[4,6,8] if args.data == 'wikitext-103' else [10, 25, 35, 45]
+
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
 
 
@@ -348,6 +356,7 @@ def evaluate(data_source):
 
 def train():
     # Turn on training mode which enables dropout.
+    # import pdb; pdb.set_trace()
     model.train()
     total_loss_ = 0.
     total_loss_hyp = 0.
@@ -435,9 +444,12 @@ def train():
             total_loss += reg_loss
 
         total_loss.backward()
+        # for p in list(filter(lambda p: p.grad is not None, model.encoder.parameters())):
+        #     print(p.grad.data.norm(2).item())
 
-        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+        if not args.retro:
+            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
 
         total_loss_ += loss.item()
@@ -506,7 +518,7 @@ try:
             with open(model_name, 'wb') as f:
                 torch.save(model, f)
             print('Saving learnt embeddings : %s' % emb_name)
-            pickle.dump(model.encoder.weight.data.cpu().numpy(), open(emb_name, 'wb'))
+            pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
             print(model.encoder.weight.data.cpu().numpy().shape)
 except KeyboardInterrupt:
     print('-' * 89)

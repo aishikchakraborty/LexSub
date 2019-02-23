@@ -31,7 +31,7 @@ if [ "${mdl}" == "retro" ]; then
     export bsize=${bsize:=512}
     export optim=${optim:="adam"}
     export lr=${lr:=0.01}
-    time=${time:=24:00:00}
+    time=${time:=23:00:00}
     mem=${mem:=30000}
 fi
 
@@ -40,18 +40,20 @@ export optim="${optim:=sgd}"
 export bsize="${bsize:=20}"
 export lower=true
 
-export lmdl=""
+lmdl=()
 if [ -n "$syn" ]; then
-    export lmdl="syn"
+    lmdl+=("syn")
 fi
 
 if [ -n "$hyp" ]; then
-    export lmdl=${lmdl}"_hyp"
+    lmdl+=("hyp")
 fi
 
 if [ -n "$mer" ]; then
-    export lmdl=${lmdl}"_mer"
+    lmdl+=("mer")
 fi
+
+export lmdl=$(IFS=_; echo "${lmdl[*]}")
 
 if [ -n "$vanilla" ] || [ "$lmdl" == "" ]; then
     export lmdl="vanilla"

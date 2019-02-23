@@ -22,8 +22,6 @@ parser.add_argument('--bptt', type=int, default=1,
                     help='bptt length')
 parser.add_argument('--batch-size', type=int, default=20,
                     help='Batch size')
-parser.add_argument('--retro', action='store_true',
-                    help='In case of retrofitting pretrained glove vectors')
 parser.add_argument('--max-pair', type=int, default=100,
                     help='max no of pairs of wordnet relations')
 parser.add_argument('--lower', action='store_true',
@@ -166,6 +164,7 @@ def get_lexical_relations_seq(text):
     meronyms = set([])
     holonyms = set([])
     preprocessed_text = preprocessing(text)
+
     # use simple nltk pos tagger for now
     pos_tags = nltk.pos_tag(preprocessed_text)
     for w, p in zip(preprocessed_text, pos_tags):
@@ -289,7 +288,7 @@ def create_cbow_corpus(in_path, out_path):
             out_file.write(str(json.dumps(output)) + '\n')
             out_file.flush()
 
-if args.retro:
+if args.model == 'retro':
     create_vocab(os.path.join(args.data, 'vocab.txt'), add_eos=False)
 else:
     create_vocab(os.path.join(args.data, 'train.txt'))
@@ -300,7 +299,7 @@ if not os.path.exists(out_dir):
 
 print("Output Dir: %s" % out_dir)
 
-if args.retro:
+if args.model == 'retro':
     create_corpus = create_glove_corpus
     train, valid, test = ['vocab.txt'] * 3
 elif args.model == 'rnn':

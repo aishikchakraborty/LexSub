@@ -15,10 +15,17 @@ source activate lm_wn
 
 export emb_size="${emb_size:=300}"
 export wnhid="${wnhid:=100}"
+export nhid="${nhid:=300}"
 export distance="${distance:=pairwise}"
 export task_emb_size=${emb_size}
+export log_interval=${log_interval:=200}
 
-cmd="python -u main.py --cuda --save-emb ${output_dir} --save ${output_dir} --log-interval 200 "
+cmd="python -u main.py --cuda --save-emb ${output_dir} --save ${output_dir} "
+
+if [ -n "$log_interval" ]; then
+   cmd+=" --log-interval ${log_interval} "
+fi
+
 if [ -n "$lr" ]; then
     cmd+=" --lr $lr"
 fi
@@ -116,10 +123,13 @@ if [ -n "$lower" ]; then
     cmd+=" --lower"
 fi
 
+if [ -n "$mdl" ]; then
+    cmd+=" --model $mdl"
+fi
 
 $cmd
 
-emb_filename=emb_${data}_${mdl}_${emb_size}_${nhid}_${wnhid}_${distance}
+emb_filename=emb_${data}_${mdl}_${lmdl}_${emb_size}_${nhid}_${wnhid}_${distance}
 
 cd analogy_tasks;
 python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
@@ -128,7 +138,8 @@ python main.py  --analogy-task --emb ../${output_dir}/${emb_filename}.pkl --voca
 cd -;
 export emb_filetxt=${output_dir}/${emb_filename}.txt
 export bidaf_input_size=$(expr ${task_emb_size} + 100)
-for task in sst esim bidaf
+export ner_input_size=$(expr ${task_emb_size} + 128)
+for task in ner sst esim bidaf
 do
     task_file=$(mktemp ${output_dir}/${task}-${emb_filename}.XXXXXX)
     envsubst < ./extrinsic_tasks/local/${task}_template.jsonnet > ${task_file}

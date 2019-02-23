@@ -3,6 +3,6 @@
 set -eux
 export mer=true
 export hyp=true
-export mdl="hyp_mer"
+export data="wikitext2"
+. scripts/run_once.sh
 
-. scripts/wikitext2/wikitext2_base.sh

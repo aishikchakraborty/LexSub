@@ -1,7 +1,6 @@
 #!/bin/bash
 
-set -eux
+set -ex
 export syn=true
-export mdl="syn"
-
-. scripts/wikitext2/wikitext2_base.sh
+export data="wikitext2"
+. scripts/run_once.sh

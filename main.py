@@ -10,7 +10,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.onnx
 import _pickle as pickle
-from tqdm import tqdm
 
 import model
 
@@ -61,8 +60,6 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
-parser.add_argument('--retro', action='store_true',
-                    help='use retrofitting')
 parser.add_argument('--gpu', type=int, default=0,
                     help='use gpu x')
 parser.add_argument('--log-interval', type=int, default=2000, metavar='N',
@@ -87,8 +84,6 @@ parser.add_argument('--random_wn', action='store_true', help='Fix random WN proj
 parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
 parser.add_argument('--extend_wn', action='store_true', help='This flag allows the final embedding to be concatenation of wn embedding and lm embedding.')
 args = parser.parse_args()
-
-args.retro = args.model == 'retro'
 
 # Set the random seed manually for reproducibility.
 torch.manual_seed(args.seed)
@@ -156,7 +151,7 @@ class Dataset(data.TabularDataset):
 
         train, valid, test = dataset
 
-        if args.retro:
+        if args.model == 'retro':
             vec = torchtext.vocab.Vectors('glove.6B.300d.txt', cache='data/glove')
             TEXT_FIELD.build_vocab(train, vectors=vec)
         else:
@@ -165,7 +160,7 @@ class Dataset(data.TabularDataset):
 
         train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
                                                 batch_size=batch_size, device=device,
-                                                shuffle=args.model != 'rnn', repeat=False, sort=False)
+                                                shuffle=bool(args.model != 'rnn'), repeat=False, sort=False)
 
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
 
@@ -251,8 +246,10 @@ def evaluate(data_source):
     total_loss_ant = 0.
     total_loss_hyp = 0.
     total_loss_mern = 0.
-    if not args.retro:
+
+    if args.model != 'retro':
         hidden = model.init_hidden(args.batch_size)
+
     start_time = time.time()
     with torch.no_grad():
         for i, batch in enumerate(data_source):
@@ -265,7 +262,12 @@ def evaluate(data_source):
             hypernyms = hypernyms.view(-1, 2)
             meronyms = meronyms.view(-1, 2)
 
-            if not args.retro:
+            if args.model == 'retro':
+                output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
+                emb, emb_glove = output_dict['glove_emb']
+                loss = output_dict.get('glove_loss',
+                                        torch.mean(dist_fn(emb, emb_glove)))
+            else:
                 output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
                 output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
                 output = output.view(-1, ntokens)
@@ -274,11 +276,6 @@ def evaluate(data_source):
 
                 loss = output_dict.get('loss_lm', criterion(output, targets))
 
-            else:
-                output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
-                emb, emb_glove = output_dict['glove_emb']
-                loss = output_dict.get('glove_loss',
-                                        torch.mean(dist_fn(emb, emb_glove)))
             total_loss += loss
             if 'syn' in args.lex_rels:
                 emb_syn1, emb_syn2 = output_dict['syn_emb']
@@ -331,7 +328,7 @@ def train():
     total_loss_mern = 0.
     total_loss_reg = 0.
     start_time = time.time()
-    if not args.retro:
+    if args.model != 'retro':
         hidden = model.init_hidden(args.batch_size)
 
     for idx, batch in enumerate(train_iter):
@@ -344,7 +341,7 @@ def train():
 
         optimizer.zero_grad()
 
-        if args.retro:
+        if args.model == 'retro':
             output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
             emb, emb_glove = output_dict['glove_emb']
             loss = output_dict.get('glove_loss',
@@ -438,9 +435,9 @@ def train():
 
 patience = 0
 lex_rels = '_'.join(args.lex_rels) if len(args.lex_rels) > 0 else 'vanilla'
-model_name = os.path.join(args.save, 'model_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_retro' if args.retro else '') + '.pt')
-emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_retro' if args.retro else '') + '.pkl')
-emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_retro' if args.retro else '') + '.txt')
+model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pt')
+emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
+emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.txt')
 
 
 vocab_name = os.path.join(args.save, 'vocab_' + args.data + '.pkl')
@@ -448,11 +445,11 @@ pickle.dump(vocab, open(vocab_name, 'wb'))
 print('Vocab Saved')
 
 try:
-    for epoch in tqdm(range(1, args.epochs+1)):
+    for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         train()
 
-        if not args.retro:
+        if args.model != 'retro':
             val_loss, loss_syn, loss_ant, loss_hyp, loss_mer = evaluate(valid_iter)
             print('-' * 89)
             print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'
@@ -480,6 +477,7 @@ try:
             print('Saving learnt embeddings : %s' % emb_name)
             pickle.dump(model.encoder.weight.data.cpu().numpy(), open(emb_name, 'wb'))
             print(model.encoder.weight.data.cpu().numpy().shape)
+
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')
@@ -494,7 +492,7 @@ with open(model_name, 'rb') as f:
 
 
 # Run on test data.
-if not args.retro:
+if args.model != 'retro':
     test_loss, test_syn, test_ant, test_hyp, test_mer = evaluate(test_iter)
     print('=' * 89)
     print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'.format(
@@ -507,7 +505,3 @@ with open(emb_name_txt, 'w') as f:
     for i in range(final_emb.shape[0]):
         f.write(vocab.itos[i] + ' ')
         f.write(' '.join([str(x) for x in final_emb[i, :]]) + '\n')
-
-# if len(args.onnx_export) > 0:
-#     # Export the model in ONNX format.
-#     export_onnx(args.onnx_export, batch_size=1, seq_len=args.bptt)

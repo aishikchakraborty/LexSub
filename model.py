@@ -217,16 +217,89 @@ class RNNModel(nn.Module):
         else:
             return weight.new_zeros(self.nlayers, bsz, self.nhid)
 
+class CBOWModel(nn.Module):
+    """Container module with an encoder, a recurrent module, and a decoder."""
+
+    def __init__(self, ntoken, ninp, cutoffs=[1000, 10000], adaptive=False,
+                proj_lm=False, lm_dim=None, fixed=False, random=False):
+        super(CBOWModel, self).__init__()
+        self.encoder = nn.Embedding(ntoken, ninp)
+
+        if not proj_lm or lm_dim is None:
+            lm_dim = ninp
+
+        if adaptive:
+            self.adaptive_softmax = nn.AdaptiveLogSoftmaxWithLoss(lm_dim, ntoken, cutoffs=cutoffs)
+        else:
+            self.decoder = nn.Linear(lm_dim, ntoken)
+
+        self.criterion = nn.NLLLoss()
+
+
+        self.ntoken = ntoken
+        self.proj_lm = proj_lm
+        self.fixed = fixed
+        self.random = random
+        self.lm_dim = lm_dim
+        self.adaptive = adaptive
+
+
+        if self.proj_lm:
+            self.lm_proj = nn.Linear(ninp, lm_dim, bias=False)
+
+            if fixed or random:
+                for param in self.lm_proj.parameters():
+                    param.requires_grad = False
+
+        self.init_weights()
+
+
+    def init_weights(self):
+        initrange = 0.1
+        self.encoder.weight.data.uniform_(-initrange, initrange)
+        if not self.adaptive:
+            self.decoder.bias.data.zero_()
+            self.decoder.weight.data.uniform_(-initrange, initrange)
+
+        if self.proj_lm:
+            if self.fixed:
+                self.lm_proj.weight.data.zero_()
+                self.lm_proj.weight.data[:, 0:self.lm_dim] = torch.eye(self.lm_dim)
+
+    def forward(self, input, hidden, targets=None):
+        output_dict={}
+        emb = self.encoder(input)
+        if self.proj_lm:
+            emb = self.lm_proj(emb)
+
+        output = torch.sum(emb, dim=0)
+        if self.adaptive:
+            decoded = self.adaptive_softmax.log_prob(output)
+        else:
+            decoded = F.log_softmax(self.decoder(output), dim=-1)
+
+        output_dict['log_probs'] = decoded
+        output_dict['hidden_vec'] = decoded
+
+        if targets is not None:
+            output_dict['loss_lm'] = self.criterion(output_dict['log_probs'].view(-1, self.ntoken),
+                                                    targets.view(-1))
+
+        return output_dict
+
+    def init_hidden(self, bsz):
+        pass
+
+
 class GloveEncoderModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
     def __init__(self, ntoken, ninp, pretrained, dist_fn=F.pairwise_distance, dropout=0.5):
         super(GloveEncoderModel, self).__init__()
-        self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
         self.glove_encoder = nn.Embedding(ntoken, ninp)
         self.glove_encoder.weight.data.copy_(pretrained)
-        self.glove_encoder.requires_grad=False
+        self.glove_encoder.weight.requires_grad=False
         self.ntoken = ntoken
         self.dist_fn = dist_fn
 
@@ -236,8 +309,8 @@ class GloveEncoderModel(nn.Module):
 
     def forward(self, input):
         output_dict={}
-        emb = self.drop(self.encoder(input))
-        emb_glove = self.drop(self.glove_encoder(input))
+        emb = self.encoder(input)
+        emb_glove = self.glove_encoder(input)
         emb, emb_glove = torch.squeeze(emb, 0), torch.squeeze(emb_glove, 0)
         output_dict['glove_emb'] = (emb, emb_glove)
         output_dict['glove_loss'] = torch.mean(self.dist_fn(emb, emb_glove))
@@ -342,7 +415,6 @@ class WNLM(nn.Module):
         self.lm = lm_module
         self.wn = wn_module
         self.encoder = self.lm.encoder
-        self.rnn = self.lm.rnn
 
     def init_weights(self):
         self.lm.init_weights()

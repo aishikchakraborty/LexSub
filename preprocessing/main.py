@@ -28,6 +28,8 @@ parser.add_argument('--max-pair', type=int, default=100,
                     help='max no of pairs of wordnet relations')
 parser.add_argument('--lower', action='store_true',
                     help='Lowercase lemmas from wordnet.')
+parser.add_argument('--model', type=str, default='rnn',
+                    help='Model type being used to train the embedding. Options are: [rnn, CBOW, retro]')
 
 args = parser.parse_args()
 word2idx = {}
@@ -49,14 +51,9 @@ def add_word(word):
     return word2idx[word]
 
 
-def create_vocab(in_path):
-    with codecs.open(in_path, 'r', encoding="utf8") as f:
-        if not args.retro:
-            add_word('<eos>')
-        for line in f:
-            words = line.split()
-            for w in words:
-                add_word(w)
+def create_vocab(in_path, add_eos=True):
+    for w in get_tokens_from_file(in_path, add_eos):
+        add_word(w)
 
 def get_wordnet_pos(treebank_tag):
     if treebank_tag.startswith('J'):
@@ -71,7 +68,7 @@ def get_wordnet_pos(treebank_tag):
         return None
 
 
-def get_lexical_relations(word, pos_tag, word2idx):
+def get_lexical_relations(word, word2idx):
     synonyms = set([]); antonyms = set([]);
     hypernyms = set([]); hyponyms = set([]);
     meronyms = set([]); holonyms = set([])
@@ -161,115 +158,161 @@ def get_lexical_relations(word, pos_tag, word2idx):
 
     return synonyms, antonyms, hypernyms, hyponyms, meronyms, holonyms
 
+def get_lexical_relations_seq(text):
+    synonyms = set([])
+    antonyms = set([])
+    hypernyms = set([])
+    hyponyms = set([])
+    meronyms = set([])
+    holonyms = set([])
+    preprocessed_text = preprocessing(text)
+    # use simple nltk pos tagger for now
+    pos_tags = nltk.pos_tag(preprocessed_text)
+    for w, p in zip(preprocessed_text, pos_tags):
+        # consider only adjectives for synonyms and antonyms
+        p = get_wordnet_pos(p[1])
+        if p is None:
+            continue
+
+        word_syn, word_ant, \
+            word_hyp, word_hypo, \
+            word_mer, word_hol = get_lexical_relations(w, word2idx)
+
+        synonyms.update(word_syn)
+        antonyms.update(word_ant)
+        hypernyms.update(word_hyp)
+        hyponyms.update(word_hypo)
+        meronyms.update(word_mer)
+        holonyms.update(word_hol)
+
+    synonyms = list(synonyms)
+    antonyms = list(antonyms)
+    hypernyms = list(hypernyms)
+    hyponyms = list(hyponyms)
+    meronyms = list(meronyms)
+    holonyms = list(holonyms)
+    shuffle(synonyms)
+    shuffle(antonyms)
+    shuffle(hypernyms)
+    shuffle(hyponyms)
+    shuffle(meronyms)
+    shuffle(holonyms)
+
+    synonym_str = ' '.join([','.join(syn) for syn in synonyms[:args.max_pair]])
+    antonym_str = ' '.join([','.join(ant) for ant in antonyms[:args.max_pair]])
+    hypernym_str = ' '.join([','.join(hyp) for hyp in hypernyms[:args.max_pair]])
+    hyponym_str = ' '.join([','.join(hyp) for hyp in hyponyms[:args.max_pair]])
+    meronym_str = ' '.join([','.join(mer) for mer in meronyms[:args.max_pair]])
+    holonym_str = ' '.join([','.join(mer) for mer in holonyms[:args.max_pair]])
+
+    return {
+                'synonyms': synonym_str,
+                'antonyms': antonym_str,
+                'hypernyms': hypernym_str,
+                'hyponyms': hyponym_str,
+                'meronyms': meronym_str,
+                'holonyms': holonym_str
+           }
 
 
-def create_corpus(in_path, out_path):
-    f1 = codecs.open(out_path, 'w', encoding="utf-8")
+def get_tokens_from_file(in_path, add_eos=True):
     with codecs.open(in_path, 'r', encoding="utf8") as f:
         tokens = []
         for line in f:
             words = line.split()
-            if not args.retro:
+            if add_eos:
                 words = words + ['<eos>']
             tokens.extend(words)
+    return tokens
 
-        num_batches = int(math.ceil(len(tokens)/args.batch_size))
-        batched_input = []
-        for batch in range(0, len(tokens), num_batches):
-            batched_input.append(tokens[batch:batch + num_batches])
 
+def create_rnn_corpus(in_path, out_path):
+    tokens = get_tokens_from_file(in_path, add_eos=True)
+
+    num_batches = int(math.ceil(len(tokens)/args.batch_size))
+    batched_input = []
+    for batch in range(0, len(tokens), num_batches):
+        batched_input.append(tokens[batch:batch + num_batches])
+
+    with codecs.open(out_path, 'w', encoding="utf-8") as out_file:
         for i in range(0, num_batches, args.bptt):
             seq_len = min(args.bptt, num_batches - i - 1)
-
             for k in range(args.batch_size):
-                synonyms = set([])
-                antonyms = set([])
-                hypernyms = set([])
-                hyponyms = set([])
-                meronyms = set([])
-                holonyms = set([])
+
                 text = batched_input[k][i:i+seq_len]
                 if len(text) == 0:
                     continue
-                if args.retro:
-                    target = text
-                else:
-                    target = batched_input[k][i+1:i+1+seq_len]
 
-                preprocessed_text = preprocessing(text)
-                # use simple nltk pos tagger for now
-                pos_tags = nltk.pos_tag(preprocessed_text)
-                for w, p in zip(preprocessed_text, pos_tags):
-                    # consider only adjectives for synonyms and antonyms
-                    p = get_wordnet_pos(p[1])
-                    if p is None:
-                        continue
-
-                    word_syn, word_ant, word_hyp, word_hypo, \
-                        word_mer, word_hol = get_lexical_relations(w, p, word2idx)
-                    synonyms.update(word_syn)
-                    antonyms.update(word_ant)
-                    hypernyms.update(word_hyp)
-                    hyponyms.update(word_hypo)
-                    meronyms.update(word_mer)
-                    holonyms.update(word_hol)
-
-                synonyms = list(synonyms)
-                antonyms = list(antonyms)
-                hypernyms = list(hypernyms)
-                hyponyms = list(hyponyms)
-                meronyms = list(meronyms)
-                holonyms = list(holonyms)
-                shuffle(synonyms)
-                shuffle(antonyms)
-                shuffle(hypernyms)
-                shuffle(hyponyms)
-                shuffle(meronyms)
-                shuffle(holonyms)
+                target = batched_input[k][i+1:i+1+seq_len]
 
                 text_str = ' '.join(text)
                 target_str = ' '.join(target)
 
-                synonym_str = ' '.join([','.join(syn) for syn in synonyms[:args.max_pair]])
-                antonym_str = ' '.join([','.join(ant) for ant in antonyms[:args.max_pair]])
-                hypernym_str = ' '.join([','.join(hyp) for hyp in hypernyms[:args.max_pair]])
-                hyponym_str = ' '.join([','.join(hyp) for hyp in hyponyms[:args.max_pair]])
-                meronym_str = ' '.join([','.join(mer) for mer in meronyms[:args.max_pair]])
-                holonym_str = ' '.join([','.join(mer) for mer in holonyms[:args.max_pair]])
+                output = get_lexical_relations_seq(text)
+                output['text'] = text_str,
+                output['target'] = target_str,
 
-                output = {
-                            'text': text_str,
-                            'target': target_str,
-                            'synonyms': synonym_str,
-                            'antonyms': antonym_str,
-                            'hypernyms': hypernym_str,
-                            'hyponyms': hyponym_str,
-                            'meronyms': meronym_str,
-                            'holonyms': holonym_str
-                         }
-                f1.write(str(json.dumps(output)) + '\n')
-                f1.flush()
+                out_file.write(str(json.dumps(output)) + '\n')
+                out_file.flush()
+
+def create_glove_corpus(in_path, out_path):
+    tokens = get_tokens_from_file(in_path, add_eos=False)
+
+    with codecs.open(out_path, 'w', encoding="utf-8") as out_file:
+        for token in tokens:
+
+            if not token:
+                continue
+
+            output = get_lexical_relations_seq([token])
+            output['text'] = token
+            output['target'] = token
+
+            out_file.write(str(json.dumps(output)) + '\n')
+            out_file.flush()
+
+def create_cbow_corpus(in_path, out_path):
+    tokens = get_tokens_from_file(in_path, add_eos=False)
+    context=4
+
+    with codecs.open(out_path, 'w', encoding="utf-8") as out_file:
+        for i in range(4, len(tokens)-4):
+            text = tokens[i-4:i] + tokens[i+1:i+5]
+            target = tokens[i]
+
+            text_str = ' '.join(text)
+
+            output = get_lexical_relations_seq(target)
+            output['text'] = text_str
+            output['target'] = target
+
+            out_file.write(str(json.dumps(output)) + '\n')
+            out_file.flush()
 
 if args.retro:
-    create_vocab(os.path.join(args.data, 'vocab.txt'))
+    create_vocab(os.path.join(args.data, 'vocab.txt'), add_eos=False)
 else:
     create_vocab(os.path.join(args.data, 'train.txt'))
-# create_vocab(os.path.join(args.data, 'test.txt'))
-# create_vocab(os.path.join(args.data, 'valid.txt'))
 
-out_dir = os.path.join(args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size))
+out_dir = os.path.join(args.data, 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size))
 if not os.path.exists(out_dir):
     os.mkdir(out_dir)
+
 print("Output Dir: %s" % out_dir)
-if not args.retro:
-    print('Creating train files')
-    create_corpus(os.path.join(args.data, 'train.txt'), os.path.join(out_dir, 'train.txt'))
-    print('Creating test files')
-    create_corpus(os.path.join(args.data, 'test.txt'), os.path.join(out_dir, 'test.txt'))
-    print('Creating valid files')
-    create_corpus(os.path.join(args.data, 'valid.txt'), os.path.join(out_dir, 'valid.txt'))
-else:
-    print('Creating train files')
-    create_corpus(os.path.join(args.data, 'vocab.txt'), os.path.join(out_dir, 'train.txt'))
-    create_corpus(os.path.join(args.data, 'vocab.txt'), os.path.join(out_dir, 'test.txt'))  # bogus files
-    create_corpus(os.path.join(args.data, 'vocab.txt'), os.path.join(out_dir, 'valid.txt')) # bogus files
+
+if args.retro:
+    create_corpus = create_glove_corpus
+    train, valid, test = ['vocab.txt'] * 3
+elif args.model == 'rnn':
+    create_corpus = create_rnn_corpus
+    train, valid, test = ['train.txt', 'valid.txt', 'test.txt']
+elif args.model == 'cbow':
+    create_corpus = create_cbow_corpus
+    train, valid, test = ['train.txt', 'valid.txt', 'test.txt']
+
+print('Creating train files')
+create_corpus(os.path.join(args.data, train), os.path.join(out_dir, 'train.txt'))
+print('Creating test files')
+create_corpus(os.path.join(args.data, test), os.path.join(out_dir, 'test.txt'))
+print('Creating valid files')
+create_corpus(os.path.join(args.data, valid), os.path.join(out_dir, 'valid.txt'))

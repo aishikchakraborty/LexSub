@@ -25,7 +25,9 @@ csv.field_size_limit(100000000)
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='wikitext-2',
                     help='location of the data corpus')
-parser.add_argument('--model', type=str, default='LSTM',
+parser.add_argument('--model', type=str, default='rnn',
+                    help='type of model. Options are [retro, rnn, cbow]')
+parser.add_argument('--rnn_type', type=str, default='LSTM',
                     help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
 parser.add_argument('--lex', '-l', action="append", type=str, default=[], dest='lex_rels',
                     help='list of type of lexical relations to capture. Options | syn | hyp | mer')
@@ -80,12 +82,13 @@ parser.add_argument('--distance', type=str, default='pairwise',
 parser.add_argument('--optim', type=str, default='sgd',
                     help='Type of optimizer to use. Options are [sgd, adam]')
 parser.add_argument('--reg', action='store_true', help='Regularize.')
-parser.add_argument('--seg', action='store_true', help='Segregated WN and LM model.')
 parser.add_argument('--fixed_wn', action='store_true', help='Fixed WN proj matrices to identity matrix.')
 parser.add_argument('--random_wn', action='store_true', help='Fix random WN proj matrix and not learn it.')
 parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
 parser.add_argument('--extend_wn', action='store_true', help='This flag allows the final embedding to be concatenation of wn embedding and lm embedding.')
 args = parser.parse_args()
+
+args.retro = args.model == 'retro'
 
 # Set the random seed manually for reproducibility.
 torch.manual_seed(args.seed)
@@ -162,17 +165,14 @@ class Dataset(data.TabularDataset):
 
         train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
                                                 batch_size=batch_size, device=device,
-                                                shuffle=False, repeat=False, sort=False)
-        if args.retro:
-            return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
-        else:
-            return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
+                                                shuffle=args.model != 'rnn', repeat=False, sort=False)
+
+        return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
+
 dist_fn = lambda x1,x2: 1 - F.cosine_similarity(x1,x2) if args.distance == 'cosine' else F.pairwise_distance(x1,x2)
 
-if args.retro:
-    train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size)), device=device)
-else:
-    train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size)), device=device)
+train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)), device=device)
+
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
 # train_iter, valid_iter, test_iter = datasets.WikiText103.iters(batch_size=args.batch_size, bptt_len=args.bptt,
@@ -195,11 +195,11 @@ def repackage_hidden(h):
 
 cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 20000, 76000]
 
-if args.seg:
+if args.model == 'rnn':
     wn_offset = args.emsize if args.extend_wn else 0
     em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
 
-    lm_model = model.RNNModel(args.model, ntokens, em_dim, args.nhid, args.nlayers, args.dropout,
+    lm_model = model.RNNModel(args.rnn_type, ntokens, em_dim, args.nhid, args.nlayers, args.dropout,
                               cutoffs=cutoffs, tie_weights=args.tied, adaptive=args.adaptive,
                               proj_lm=args.extend_wn, lm_dim=args.emsize,
                               fixed=args.fixed_wn, random=args.random_wn).to(device)
@@ -209,8 +209,7 @@ if args.seg:
                              fixed=args.fixed_wn,
                              random=args.random_wn).to(device)
     model = model.WNLM(lm_model, wn_model).to(device)
-
-elif args.retro:
+elif args.model == 'retro':
     gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained).to(device)
     wn_model = model.WNModel(args.lex_rels, gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
                              wn_offset=0,
@@ -218,8 +217,23 @@ elif args.retro:
                              fixed=args.fixed_wn,
                              random=args.random_wn).to(device)
     model = model.GloveModel(gl_model, wn_model).to(device)
+elif args.model == 'cbow':
+    wn_offset = args.emsize if args.extend_wn else 0
+    em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
+
+    lm_model = model.CBOWModel(ntokens, em_dim, cutoffs=cutoffs, adaptive=args.adaptive,
+                              proj_lm=args.extend_wn, lm_dim=args.emsize,
+                              fixed=args.fixed_wn, random=args.random_wn).to(device)
+    wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
+                             wn_offset=wn_offset,
+                             antonym_margin=args.margin,
+                             fixed=args.fixed_wn,
+                             random=args.random_wn).to(device)
+    model = model.WNLM(lm_model, wn_model).to(device)
 else:
-    model = model.RNNWordnetModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.wn_hid, args.dropout, args.tied, args.adaptive, cutoffs).to(device)
+    raise ValueError('Illegal model type: %s. Options are [rnn, cbow, retro]' % args.model)
+
+#model = model.RNNWordnetModel(args.rnn_type, ntokens, args.emsize, args.nhid, args.nlayers, args.wn_hid, args.dropout, args.tied, args.adaptive, cutoffs).to(device)
 
 criterion = nn.NLLLoss()
 
@@ -412,7 +426,7 @@ def train():
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | loss {:5.2f} | ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f} | reg_loss {:5.2f}'
                     .format(epoch, idx, len(train_iter), optimizer.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
-                        cur_loss, math.exp(cur_loss), curr_syn_loss, curr_ant_loss, curr_hyp_loss, curr_mern_loss, curr_reg_loss))
+                        cur_loss, math.exp(min(cur_loss, 10)), curr_syn_loss, curr_ant_loss, curr_hyp_loss, curr_mern_loss, curr_reg_loss))
             start_time = time.time()
             total_loss_ = 0
             total_loss_syn = 0
@@ -475,8 +489,8 @@ with open(model_name, 'rb') as f:
     model = torch.load(f)
     # after load the rnn params are not a continuous chunk of memory
     # this makes them a continuous chunk, and will speed up forward pass
-    if not args.retro:
-        model.rnn.flatten_parameters()
+    if args.model=='rnn':
+        model.lm.rnn.flatten_parameters()
 
 
 # Run on test data.

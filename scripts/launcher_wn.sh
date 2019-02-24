@@ -129,7 +129,7 @@ fi
 
 $cmd
 
-emb_filename=emb_${data}_${mdl}_${lmdl}_${emb_size}_${nhid}_${wnhid}_${distance}
+emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}
 
 cd analogy_tasks;
 python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl

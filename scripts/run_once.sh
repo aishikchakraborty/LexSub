@@ -20,7 +20,7 @@ if [ "${data}" == "wikitext103" ]; then
     export data=wikitext-103
     export nhid="${nhid:=1200}"
     time=${time:=2-23:00:00}
-    mem=${mem:=120000}
+    mem=${mem:=90000}
     export adaptive=true
 fi
 
@@ -40,27 +40,28 @@ export optim="${optim:=sgd}"
 export bsize="${bsize:=20}"
 export lower=true
 
-lmdl=()
+lexs_arr=()
 if [ -n "$syn" ]; then
-    lmdl+=("syn")
+    lexs_arr+=("syn")
 fi
 
 if [ -n "$hyp" ]; then
-    lmdl+=("hyp")
+    lexs_arr+=("hyp")
 fi
 
 if [ -n "$mer" ]; then
-    lmdl+=("mer")
+    lexs_arr+=("mer")
 fi
 
-export lmdl=$(IFS=_; echo "${lmdl[*]}")
+lexs_tmp=$(IFS=_; echo "${lexs_arr[*]}")
 
-if [ -n "$vanilla" ] || [ "$lmdl" == "" ]; then
-    export lmdl="vanilla"
+export lexs=${lexs_tmp}
+if [ -n "$vanilla" ] || [ "$lexs" == "" ]; then
+    export lexs="vanilla"
 fi
 
 
-dir="output/${data}_${mdl}_${lmdl}"
+dir="output/${data}_${mdl}_${lexs}"
 dir=${dir}"$([[ $reg ]] && echo _reg || echo '')"
 dir=${dir}"$([[ $fixed_wn ]] && echo _fixed || echo '')"
 dir=${dir}"$([[ $random_wn ]] && echo _radom || echo '')"

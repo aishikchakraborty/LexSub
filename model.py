@@ -194,7 +194,6 @@ class RNNModel(nn.Module):
 
         output, hidden = self.rnn(emb, hidden)
         output = self.drop(output)
-        decoded = self.decoder(output.view(output.size(0)*output.size(1), output.size(2)))
         if self.adaptive:
             decoded = self.adaptive_softmax.log_prob(output.view(output.size(0)*output.size(1), output.size(2)))
         else:

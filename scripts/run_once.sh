@@ -30,6 +30,7 @@ if [ "${mdl}" == "retro" ]; then
     export data=${data:=glove}
     export bsize=${bsize:=512}
     export lr=${lr:=1}
+    export optim="${optim:=adagrad}"
     export time="${time:=23:00:00}"
     export mem="${mem:=30000}"
 fi

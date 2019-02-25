@@ -78,7 +78,7 @@ parser.add_argument('--wn_ratio', type=float, default=0.2,
 parser.add_argument('--distance', type=str, default='cosine',
                     help='Type of distance to use. Options are [pairwise, cosine]')
 parser.add_argument('--optim', type=str, default='sgd',
-                    help='Type of optimizer to use. Options are [sgd, adam]')
+                    help='Type of optimizer to use. Options are [sgd, adagrad]')
 parser.add_argument('--reg', action='store_true', help='Regularize.')
 parser.add_argument('--fixed_wn', action='store_true', help='Fixed WN proj matrices to identity matrix.')
 parser.add_argument('--random_wn', action='store_true', help='Fix random WN proj matrix and not learn it.')
@@ -241,7 +241,7 @@ else:
 
 criterion = nn.NLLLoss()
 
-optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adam' else torch.optim.SGD(model.parameters(), lr=lr)
+optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
 milestones=[100] if args.optim != 'sgd' else \
             [4,6,8] if args.data == 'wikitext-2' else \
                 [10, 25, 35, 45]  if args.data == 'wikitext-2' else [2, 5, 10, 25]

@@ -6,22 +6,22 @@ set -ex
 export mdl=${mdl:="rnn"}
 
 if [ "${data}" == "wikitext2" ]; then
-    export epoch="${epoch:=100}"
+    export epoch="${epoch:=70}"
     export bptt="${bptt:=35}"
-    export data=wikitext-2
+    export data="wikitext-2"
     export nhid="${nhid:=300}"
-    time=${time:=23:00:00}
-    mem=${mem:=30000}
+    time="${time:=23:00:00}"
+    export mem="${mem:=30000}"
 fi
 
 if [ "${data}" == "wikitext103" ]; then
     export epoch="${epoch:=9}"
     export bptt="${bptt:=50}"
-    export data=wikitext-103
+    export data="wikitext-103"
     export nhid="${nhid:=1200}"
-    time=${time:=2-23:00:00}
-    mem=${mem:=90000}
     export adaptive=true
+    export time="${time:=2-23:00:00}"
+    export mem="${mem:=90000}"
 fi
 
 if [ "${mdl}" == "retro" ]; then
@@ -29,10 +29,9 @@ if [ "${mdl}" == "retro" ]; then
     export bptt="${bptt:=1}"
     export data=${data:=glove}
     export bsize=${bsize:=512}
-    export optim=${optim:="adam"}
-    export lr=${lr:=0.01}
-    time=${time:=23:00:00}
-    mem=${mem:=30000}
+    export lr=${lr:=1}
+    export time="${time:=23:00:00}"
+    export mem="${mem:=30000}"
 fi
 
 export lr="${lr:=20}"

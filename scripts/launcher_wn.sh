@@ -16,7 +16,7 @@ source activate lm_wn
 export emb_size="${emb_size:=300}"
 export wnhid="${wnhid:=100}"
 export nhid="${nhid:=300}"
-export distance="${distance:=pairwise}"
+export distance="${distance:=cosine}"
 export task_emb_size=${emb_size}
 export log_interval=${log_interval:=200}
 

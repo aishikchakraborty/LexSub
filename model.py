@@ -296,9 +296,7 @@ class GloveEncoderModel(nn.Module):
     def __init__(self, ntoken, ninp, pretrained, dist_fn=F.pairwise_distance, dropout=0.5):
         super(GloveEncoderModel, self).__init__()
         self.encoder = nn.Embedding(ntoken, ninp)
-        self.glove_encoder = nn.Embedding(ntoken, ninp)
-        self.glove_encoder.weight.data.copy_(pretrained)
-        self.glove_encoder.weight.requires_grad=False
+        self.glove_encoder = pretrained
         self.ntoken = ntoken
         self.dist_fn = dist_fn
 
@@ -309,7 +307,7 @@ class GloveEncoderModel(nn.Module):
     def forward(self, input):
         output_dict={}
         emb = self.encoder(input)
-        emb_glove = self.glove_encoder(input)
+        emb_glove = self.glove_encoder[input]
         emb, emb_glove = torch.squeeze(emb, 0), torch.squeeze(emb_glove, 0)
         output_dict['glove_emb'] = (emb, emb_glove)
         output_dict['glove_loss'] = torch.mean(self.dist_fn(emb, emb_glove))

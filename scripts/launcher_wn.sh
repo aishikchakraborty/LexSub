@@ -127,6 +127,10 @@ if [ -n "$mdl" ]; then
     cmd+=" --model $mdl"
 fi
 
+if [ -n "$adir" ]; then
+    cmd+=" --annotated_dir $adir "
+fi
+
 $cmd
 
 emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}

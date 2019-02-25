@@ -24,6 +24,7 @@ csv.field_size_limit(100000000)
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='wikitext-2',
                     help='location of the data corpus')
+parser.add_argument('--annotated_dir', type=str, help='name of the directory with annontated data.')
 parser.add_argument('--model', type=str, default='rnn',
                     help='type of model. Options are [retro, rnn, cbow]')
 parser.add_argument('--rnn_type', type=str, default='LSTM',
@@ -74,7 +75,7 @@ parser.add_argument('--adaptive', action='store_true',
                     help='Use adaptive softmax. This speeds up computation.')
 parser.add_argument('--wn_ratio', type=float, default=0.2,
                     help='dropout applied to layers (0 = no dropout)')
-parser.add_argument('--distance', type=str, default='pairwise',
+parser.add_argument('--distance', type=str, default='cosine',
                     help='Type of distance to use. Options are [pairwise, cosine]')
 parser.add_argument('--optim', type=str, default='sgd',
                     help='Type of optimizer to use. Options are [sgd, adam]')
@@ -164,9 +165,15 @@ class Dataset(data.TabularDataset):
 
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
 
-dist_fn = lambda x1,x2: 1 - F.cosine_similarity(x1,x2) if args.distance == 'cosine' else F.pairwise_distance(x1,x2)
 
-train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)), device=device)
+def dist_fn(x1, x2):
+    if args.distance == 'cosine':
+        return  1 - F.cosine_similarity(x1,x2)
+    elif args.distance == 'pairwise':
+        return F.pairwise_distance(x1, x2)
+
+annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)
+train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
@@ -202,15 +209,17 @@ if args.model == 'rnn':
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
-                             random=args.random_wn).to(device)
+                             random=args.random_wn,
+                             dist_fn=dist_fn).to(device)
     model = model.WNLM(lm_model, wn_model).to(device)
 elif args.model == 'retro':
-    gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained).to(device)
+    gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained.to(device), dist_fn=dist_fn).to(device)
     wn_model = model.WNModel(args.lex_rels, gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
                              wn_offset=0,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
-                             random=args.random_wn).to(device)
+                             random=args.random_wn,
+                             dist_fn=dist_fn).to(device)
     model = model.GloveModel(gl_model, wn_model).to(device)
 elif args.model == 'cbow':
     wn_offset = args.emsize if args.extend_wn else 0
@@ -232,8 +241,11 @@ else:
 
 criterion = nn.NLLLoss()
 
-optimizer = torch.optim.Adam(model.parameters(), lr=lr) if args.optim == 'adam' else torch.optim.SGD(model.parameters(), lr=lr)
-milestones=[4,6,8] if args.data == 'wikitext-103' else [10, 25, 35, 45]
+optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adam' else torch.optim.SGD(model.parameters(), lr=lr)
+milestones=[100] if args.optim != 'sgd' else \
+            [4,6,8] if args.data == 'wikitext-2' else \
+                [10, 25, 35, 45]  if args.data == 'wikitext-2' else [2, 5, 10, 25]
+print(milestones)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
 
 
@@ -475,8 +487,7 @@ try:
             with open(model_name, 'wb') as f:
                 torch.save(model, f)
             print('Saving learnt embeddings : %s' % emb_name)
-            pickle.dump(model.encoder.weight.data.cpu().numpy(), open(emb_name, 'wb'))
-            print(model.encoder.weight.data.cpu().numpy().shape)
+            pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
 
 except KeyboardInterrupt:
     print('-' * 89)

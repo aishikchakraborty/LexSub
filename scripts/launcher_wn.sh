@@ -10,7 +10,7 @@
 ###########################
 
 set -ex
-
+echo $SLURM_JOBID - `hostname` - ${output_dir} >> ./lm_wn_machine_assignments.txt
 source activate lm_wn
 
 export emb_size="${emb_size:=300}"

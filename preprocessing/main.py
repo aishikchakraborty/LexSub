@@ -22,12 +22,12 @@ parser.add_argument('--bptt', type=int, default=1,
                     help='bptt length')
 parser.add_argument('--batch-size', type=int, default=20,
                     help='Batch size')
+parser.add_argument('--model', type=str, default='rnn',
+                    help='Model type being used to train the embedding. Options are: [rnn, CBOW, retro]')
 parser.add_argument('--max-pair', type=int, default=100,
                     help='max no of pairs of wordnet relations')
 parser.add_argument('--lower', action='store_true',
                     help='Lowercase lemmas from wordnet.')
-parser.add_argument('--model', type=str, default='rnn',
-                    help='Model type being used to train the embedding. Options are: [rnn, CBOW, retro]')
 
 args = parser.parse_args()
 word2idx = {}
@@ -247,9 +247,9 @@ def create_rnn_corpus(in_path, out_path):
                 text_str = ' '.join(text)
                 target_str = ' '.join(target)
 
-                output = get_lexical_relations_seq(text)
-                output['text'] = text_str,
-                output['target'] = target_str,
+                output = {'text': text_str,
+                          'target': target_str}
+                output.update(get_lexical_relations_seq(text))
 
                 out_file.write(str(json.dumps(output)) + '\n')
                 out_file.flush()

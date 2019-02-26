@@ -71,7 +71,8 @@ dir=${dir}"$([[ $extend_wn ]] && echo _extend || echo '')"
 dir=${dir}"/$(date '+%Y_%m_%d_%H_%M')"
 
 export output_dir=${output_dir:=$dir}
-account="${account:=rpp-bengioy}"
+#account="${account:=rpp-bengioy}"
+account="${account:=rgg-dprecup}"
 
 mkdir -p ${output_dir}
 sbatch -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --mem ${mem} scripts/launcher_wn.sh

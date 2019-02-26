@@ -236,6 +236,10 @@ def create_rnn_corpus(in_path, out_path):
     with codecs.open(out_path, 'w', encoding="utf-8") as out_file:
         for i in range(0, num_batches, args.bptt):
             seq_len = min(args.bptt, num_batches - i - 1)
+
+            if seq_len < args.bptt:
+                continue
+
             for k in range(args.batch_size):
 
                 text = batched_input[k][i:i+seq_len]

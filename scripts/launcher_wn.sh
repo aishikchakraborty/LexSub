@@ -131,6 +131,10 @@ if [ -n "$adir" ]; then
     cmd+=" --annotated_dir $adir "
 fi
 
+if [ -n "${nlayers}" ]; then
+    cmd+=" --nlayers ${nlayers} "
+fi 
+
 $cmd
 
 emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}

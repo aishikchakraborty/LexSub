@@ -82,6 +82,10 @@ if [ -n "$adaptive" ]; then
     cmd+=" --adaptive"
 fi
 
+if [ -n "$nce" ]; then
+    cmd+=" --nce"
+fi
+
 if [ -n "$extend_wn" ]; then
     cmd+=" --extend_wn"
 fi
@@ -133,7 +137,7 @@ fi
 
 if [ -n "${nlayers}" ]; then
     cmd+=" --nlayers ${nlayers} "
-fi 
+fi
 
 $cmd
 

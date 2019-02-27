@@ -2,6 +2,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+from nce import IndexLinear
+
 class RNNWordnetModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
@@ -112,9 +114,9 @@ class RNNWordnetModel(nn.Module):
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
-    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers,
-                 dropout=0.5, cutoffs=[1000, 10000], tie_weights=False, adaptive=False,
-                proj_lm=False, lm_dim=None, fixed=False, random=False):
+    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, vocab_freq,
+                    dropout=0.5, cutoffs=[1000, 10000], tie_weights=False, adaptive=False,
+                    proj_lm=False, lm_dim=None, fixed=False, random=False, nce=False):
         super(RNNModel, self).__init__()
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
@@ -149,8 +151,27 @@ class RNNModel(nn.Module):
                 raise ValueError('When using the tied flag, nhid must be equal to emsize')
             self.decoder.weight = self.encoder.weight
 
+        if nce:
+            def build_unigram_noise(freq):
+                """build the unigram noise from a list of frequency
+                Parameters:
+                    freq: a tensor of #occurrences of the corresponding index
+                Return:
+                    unigram_noise: a torch.Tensor with size ntokens,
+                    elements indicate the probability distribution
+                """
+                total = freq.sum()
+                noise = freq / total
+                assert abs(noise.sum() - 1) < 0.001
+                return noise
 
-        self.criterion = nn.NLLLoss()
+            self.criterion = IndexLinear(nhid, ntoken,
+                                noise=build_unigram_noise(vocab_freq),
+                                noise_ratio=int(ntoken/100),
+                                loss_type='sampled' if nce else 'full')
+        else:
+            self.criterion = nn.NLLLoss()
+
 
 
         self.rnn_type = rnn_type
@@ -161,7 +182,7 @@ class RNNModel(nn.Module):
         self.fixed = fixed
         self.random = random
         self.lm_dim = lm_dim
-
+        self.nce = nce
 
         if self.proj_lm:
             self.lm_proj = nn.Linear(ninp, lm_dim, bias=False)
@@ -194,17 +215,22 @@ class RNNModel(nn.Module):
 
         output, hidden = self.rnn(emb, hidden)
         output = self.drop(output)
-        if self.adaptive:
-            decoded = self.adaptive_softmax.log_prob(output.view(output.size(0)*output.size(1), output.size(2)))
-        else:
-            decoded = F.log_softmax(self.decoder(output.view(output.size(0)*output.size(1), output.size(2))), dim=-1)
 
-        output_dict['log_probs'] = decoded.view(output.size(0), output.size(1), decoded.size(1))
         output_dict['hidden_vec'] = hidden
+        output_dict['log_probs'] = None
+        if targets is not None and self.nce:
+            output_dict['loss_lm'] = self.criterion(targets, output)
+        else:
+            if self.adaptive:
+                decoded = self.adaptive_softmax.log_prob(output.view(output.size(0)*output.size(1), output.size(2)))
+            else:
+                decoded = F.log_softmax(self.decoder(output.view(output.size(0)*output.size(1), output.size(2))), dim=-1)
 
-        if targets is not None:
-            output_dict['loss_lm'] = self.criterion(output_dict['log_probs'].view(-1, self.ntoken),
-                                                    targets.view(-1))
+            output_dict['log_probs'] = decoded.view(output.size(0), output.size(1), decoded.size(1))
+
+            if targets is not None:
+                output_dict['loss_lm'] = self.criterion(output_dict['log_probs'].view(-1, self.ntoken),
+                                                        targets.view(-1))
 
         return output_dict
 

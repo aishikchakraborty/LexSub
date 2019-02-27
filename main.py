@@ -84,6 +84,7 @@ parser.add_argument('--fixed_wn', action='store_true', help='Fixed WN proj matri
 parser.add_argument('--random_wn', action='store_true', help='Fix random WN proj matrix and not learn it.')
 parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
 parser.add_argument('--extend_wn', action='store_true', help='This flag allows the final embedding to be concatenation of wn embedding and lm embedding.')
+parser.add_argument('--nce', action='store_true', help='Use nce for training.')
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -177,7 +178,7 @@ train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
-# train_iter, valid_iter, test_iter = datasets.WikiText103.iters(batch_size=args.batch_size, bptt_len=args.bptt,
+# train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
                                                              # device=device, root=args.data)
 # vocab = train_iter.dataset.fields['text'].vocab
 
@@ -201,10 +202,15 @@ if args.model == 'rnn':
     wn_offset = args.emsize if args.extend_wn else 0
     em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
 
-    lm_model = model.RNNModel(args.rnn_type, ntokens, em_dim, args.nhid, args.nlayers, args.dropout,
-                              cutoffs=cutoffs, tie_weights=args.tied, adaptive=args.adaptive,
+    idx2freq = [0] * ntokens
+    for key, value in vocab.freqs.items():
+        idx2freq[vocab.stoi[key]] = value
+    idx2freq = torch.tensor(idx2freq, dtype=torch.float)
+
+    lm_model = model.RNNModel(args.rnn_type, ntokens, em_dim, args.nhid, args.nlayers, idx2freq,
+                              args.dropout, cutoffs=cutoffs, tie_weights=args.tied, adaptive=args.adaptive,
                               proj_lm=args.extend_wn, lm_dim=args.emsize,
-                              fixed=args.fixed_wn, random=args.random_wn).to(device)
+                              fixed=args.fixed_wn, random=args.random_wn, nce=args.nce).to(device)
     wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
@@ -243,8 +249,8 @@ criterion = nn.NLLLoss()
 
 optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
 milestones=[100] if args.optim != 'sgd' else \
-            [4,6,8] if args.data == 'wikitext-2' else \
-                [10, 25, 35, 45]  if args.data == 'wikitext-2' else [2, 5, 10, 25]
+            ([4,6,8] if args.data == 'wikitext-103' else \
+                [10, 25, 35, 45]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
 print(milestones)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
 
@@ -282,11 +288,12 @@ def evaluate(data_source):
             else:
                 output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
                 output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
-                output = output.view(-1, ntokens)
-                targets = targets.view(-1)
                 hidden = repackage_hidden(hidden)
 
-                loss = output_dict.get('loss_lm', criterion(output, targets))
+                if 'loss_lm' in output_dict:
+                    loss = output_dict['loss_lm']
+                else:
+                    loss = criterion(output.view(-1, ntokens), targets.view(-1))
 
             total_loss += loss
             if 'syn' in args.lex_rels:
@@ -362,11 +369,12 @@ def train():
             output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
 
             output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
-            output = output.view(-1, ntokens)
-            targets = targets.view(-1)
             hidden = repackage_hidden(hidden)
 
-            loss = output_dict.get('loss_lm', criterion(output, targets))
+            if 'loss_lm' in output_dict:
+                loss = output_dict['loss_lm']
+            else:
+                loss = criterion(output.view(-1, ntokens), targets.view(-1))
 
         total_loss = loss
 

@@ -139,22 +139,55 @@ if [ -n "${nlayers}" ]; then
     cmd+=" --nlayers ${nlayers} "
 fi
 
-$cmd
+if [ -z "${step}" ]; then
+    step=0
+fi
 
-emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}
+if [ ${step} -lt 1 ]; then
+    $cmd
+    step=`expr ${step} + 1`
+fi
 
-cd analogy_tasks;
-python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
-python main.py  --analogy-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
+if [ -z "${emb_filename}" ]; then
+    emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}
+fi
 
-cd -;
+if [ ${step} -lt 2 ]; then
+    cd analogy_tasks;
+    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
+    step=`expr ${step} + 1`
+    cd -;
+fi
+
 export emb_filetxt=${output_dir}/${emb_filename}.txt
 export bidaf_input_size=$(expr ${task_emb_size} + 100)
 export ner_input_size=$(expr ${task_emb_size} + 128)
-for task in ner sst esim bidaf
-do
+
+declare -A task2time
+task2time["ner"]="3:00:00"
+task2time["sst"]="3:00:00"
+task2time["esim"]="6:00:00"
+task2time["bidaf"]="6:00:00"
+
+run_extrinsic_task () {
+    task=$1
     task_file=$(mktemp ${output_dir}/${task}-${emb_filename}.XXXXXX)
     envsubst < ./extrinsic_tasks/local/${task}_template.jsonnet > ${task_file}
-    allennlp train ${task_file} -s ${output_dir}/${task}/
+    sbatch -o ${output_dir}/${task}_std.out \
+        -e ${output_dir}/${task}_std.out \
+        -A ${account} \
+        -t "${task2time[$task]}" \
+        scripts/launcher_basic.sh allennlp train ${task_file} -s ${output_dir}/${task}/
     rm ${task_file}
+}
+
+
+i=3
+for ext_task in ner sst esim bidaf
+do
+    if [ ${step} -lt ${i} ]; then
+        run_extrinsic_task ${ext_task};
+        step=`expr ${step} + 1`
+    fi
+    i=`expr ${i} + 1`
 done

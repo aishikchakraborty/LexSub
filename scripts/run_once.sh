@@ -15,7 +15,7 @@ if [ "${data}" == "wikitext2" ]; then
 fi
 
 if [ "${data}" == "wikitext103" ]; then
-    export epoch="${epoch:=9}"
+    export epoch="${epoch:=5}"
     export bptt="${bptt:=50}"
     export data="wikitext-103"
     export nhid="${nhid:=1200}"
@@ -73,7 +73,7 @@ dir=${dir}"/$(date '+%Y_%m_%d_%H_%M')"
 
 export output_dir=${output_dir:=$dir}
 #account="${account:=rpp-bengioy}"
-account="${account:=rgg-dprecup}"
+export account="${account:=rrg-dprecup}"
 
 mkdir -p ${output_dir}
 sbatch -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --mem ${mem} scripts/launcher_wn.sh

@@ -85,6 +85,7 @@ parser.add_argument('--random_wn', action='store_true', help='Fix random WN proj
 parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
 parser.add_argument('--extend_wn', action='store_true', help='This flag allows the final embedding to be concatenation of wn embedding and lm embedding.')
 parser.add_argument('--nce', action='store_true', help='Use nce for training.')
+parser.add_argument('--nce_loss', type=str, default='nce', help='Type of nce to use.')
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -196,21 +197,21 @@ def repackage_hidden(h):
     else:
         return tuple(repackage_hidden(v) for v in h)
 
-cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 20000, 76000]
+cutoffs = [100, 1000, 5000] if args.data == 'wikitext-2' else [2800, 10000, 30000, 76000]
+
+idx2freq = [0] * ntokens
+for key, value in vocab.freqs.items():
+    idx2freq[vocab.stoi[key]] = value
+idx2freq = torch.tensor(idx2freq, dtype=torch.float)
 
 if args.model == 'rnn':
     wn_offset = args.emsize if args.extend_wn else 0
     em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
 
-    idx2freq = [0] * ntokens
-    for key, value in vocab.freqs.items():
-        idx2freq[vocab.stoi[key]] = value
-    idx2freq = torch.tensor(idx2freq, dtype=torch.float)
-
     lm_model = model.RNNModel(args.rnn_type, ntokens, em_dim, args.nhid, args.nlayers, idx2freq,
                               args.dropout, cutoffs=cutoffs, tie_weights=args.tied, adaptive=args.adaptive,
                               proj_lm=args.extend_wn, lm_dim=args.emsize,
-                              fixed=args.fixed_wn, random=args.random_wn, nce=args.nce).to(device)
+                              fixed=args.fixed_wn, random=args.random_wn, nce=args.nce, nce_loss=args.nce_loss).to(device)
     wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
@@ -231,9 +232,9 @@ elif args.model == 'cbow':
     wn_offset = args.emsize if args.extend_wn else 0
     em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
 
-    lm_model = model.CBOWModel(ntokens, em_dim, cutoffs=cutoffs, adaptive=args.adaptive,
+    lm_model = model.CBOWModel(ntokens, em_dim, idx2freq, cutoffs=cutoffs, adaptive=args.adaptive,
                               proj_lm=args.extend_wn, lm_dim=args.emsize,
-                              fixed=args.fixed_wn, random=args.random_wn).to(device)
+                              fixed=args.fixed_wn, random=args.random_wn, nce=args.nce, nce_loss=args.nce_loss).to(device)
     wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
@@ -249,7 +250,7 @@ criterion = nn.NLLLoss()
 
 optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
 milestones=[100] if args.optim != 'sgd' else \
-            ([4,6,8] if args.data == 'wikitext-103' else \
+            ([1,2,3] if args.data == 'wikitext-103' else \
                 [10, 25, 35, 45]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
 print(milestones)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
@@ -259,6 +260,9 @@ print('Lex Rel List: {}'.format(args.lex_rels))
 def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
+    if args.model == 'rnn' and args.nce:
+        model.lm.criterion.loss_type='full'
+
     total_loss = 0.
     total_loss_syn = 0.
     total_loss_ant = 0.
@@ -332,6 +336,9 @@ def evaluate(data_source):
                     loss_mer = torch.sum(dist_fn(emb_mern1, emb_mern2) * mer_mask)/mer_len
 
                 total_loss_mern += loss_mer
+
+    if args.model == 'rnn' and args.nce:
+        model.lm.criterion.loss_type = args.nce_loss
 
     return total_loss/(len(data_source) - 1), total_loss_syn/(len(data_source) - 1), total_loss_ant/(len(data_source) - 1), \
             total_loss_hyp/ (len(data_source) - 1), total_loss_mern/(len(data_source) - 1)

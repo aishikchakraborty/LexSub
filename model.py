@@ -116,7 +116,7 @@ class RNNModel(nn.Module):
 
     def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, vocab_freq,
                     dropout=0.5, cutoffs=[1000, 10000], tie_weights=False, adaptive=False,
-                    proj_lm=False, lm_dim=None, fixed=False, random=False, nce=False):
+                    proj_lm=False, lm_dim=None, fixed=False, random=False, nce=False, nce_loss='nce'):
         super(RNNModel, self).__init__()
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
@@ -135,10 +135,6 @@ class RNNModel(nn.Module):
                                  options are ['LSTM', 'GRU', 'RNN_TANH' or 'RNN_RELU']""")
             self.rnn = nn.RNN(lm_dim, nhid, nlayers, nonlinearity=nonlinearity, dropout=dropout)
 
-        if adaptive:
-            self.adaptive_softmax = nn.AdaptiveLogSoftmaxWithLoss(nhid, ntoken, cutoffs=cutoffs)
-        else:
-            self.decoder = nn.Linear(nhid, ntoken)
 
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)
@@ -167,12 +163,15 @@ class RNNModel(nn.Module):
 
             self.criterion = IndexLinear(nhid, ntoken,
                                 noise=build_unigram_noise(vocab_freq),
-                                noise_ratio=int(ntoken/100),
-                                loss_type='sampled' if nce else 'full')
+                                noise_ratio=int(ntoken/10),
+                                loss_type=nce_loss)
         else:
+            if adaptive:
+                self.adaptive_softmax = nn.AdaptiveLogSoftmaxWithLoss(nhid, ntoken, cutoffs=cutoffs)
+            else:
+                self.decoder = nn.Linear(nhid, ntoken)
+
             self.criterion = nn.NLLLoss()
-
-
 
         self.rnn_type = rnn_type
         self.nhid = nhid
@@ -197,7 +196,7 @@ class RNNModel(nn.Module):
     def init_weights(self):
         initrange = 0.1
         self.encoder.weight.data.uniform_(-initrange, initrange)
-        if not self.adaptive:
+        if not self.adaptive and not self.nce:
             self.decoder.bias.data.zero_()
             self.decoder.weight.data.uniform_(-initrange, initrange)
 
@@ -219,7 +218,7 @@ class RNNModel(nn.Module):
         output_dict['hidden_vec'] = hidden
         output_dict['log_probs'] = None
         if targets is not None and self.nce:
-            output_dict['loss_lm'] = self.criterion(targets, output)
+            output_dict['loss_lm'] = self.criterion(targets.view(-1, 1), output.unsqueeze(1))
         else:
             if self.adaptive:
                 decoded = self.adaptive_softmax.log_prob(output.view(output.size(0)*output.size(1), output.size(2)))
@@ -245,21 +244,39 @@ class RNNModel(nn.Module):
 class CBOWModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
-    def __init__(self, ntoken, ninp, cutoffs=[1000, 10000], adaptive=False,
-                proj_lm=False, lm_dim=None, fixed=False, random=False):
+    def __init__(self, ntoken, ninp, vocab_freq, cutoffs=[1000, 10000], adaptive=False,
+                proj_lm=False, lm_dim=None, fixed=False, random=False, nce=False, nce_loss='nce'):
         super(CBOWModel, self).__init__()
         self.encoder = nn.Embedding(ntoken, ninp)
 
         if not proj_lm or lm_dim is None:
             lm_dim = ninp
 
-        if adaptive:
-            self.adaptive_softmax = nn.AdaptiveLogSoftmaxWithLoss(lm_dim, ntoken, cutoffs=cutoffs)
+
+        if nce:
+            def build_unigram_noise(freq):
+                """build the unigram noise from a list of frequency
+                Parameters:
+                    freq: a tensor of #occurrences of the corresponding index
+                Return:
+                    unigram_noise: a torch.Tensor with size ntokens,
+                    elements indicate the probability distribution
+                """
+                total = freq.sum()
+                noise = freq / total
+                assert abs(noise.sum() - 1) < 0.001
+                return noise
+
+            self.criterion = IndexLinear(lm_dim, ntoken,
+                                noise=build_unigram_noise(vocab_freq),
+                                noise_ratio=int(ntoken/100),
+                                loss_type=nce_loss)
         else:
-            self.decoder = nn.Linear(lm_dim, ntoken)
-
-        self.criterion = nn.NLLLoss()
-
+            if adaptive:
+                self.adaptive_softmax = nn.AdaptiveLogSoftmaxWithLoss(lm_dim, ntoken, cutoffs=cutoffs)
+            else:
+                self.decoder = nn.Linear(lm_dim, ntoken)
+            self.criterion = nn.NLLLoss()
 
         self.ntoken = ntoken
         self.proj_lm = proj_lm
@@ -267,6 +284,7 @@ class CBOWModel(nn.Module):
         self.random = random
         self.lm_dim = lm_dim
         self.adaptive = adaptive
+        self.nce = nce
 
 
         if self.proj_lm:
@@ -282,7 +300,7 @@ class CBOWModel(nn.Module):
     def init_weights(self):
         initrange = 0.1
         self.encoder.weight.data.uniform_(-initrange, initrange)
-        if not self.adaptive:
+        if not self.adaptive and not self.nce:
             self.decoder.bias.data.zero_()
             self.decoder.weight.data.uniform_(-initrange, initrange)
 
@@ -298,17 +316,24 @@ class CBOWModel(nn.Module):
             emb = self.lm_proj(emb)
 
         output = torch.sum(emb, dim=0)
-        if self.adaptive:
-            decoded = self.adaptive_softmax.log_prob(output)
+
+        output_dict['log_probs'] = None
+        output_dict['hidden_vec'] = output
+
+        if targets is not None and self.nce:
+            output_dict['loss_lm'] = self.criterion(targets, output)
         else:
-            decoded = F.log_softmax(self.decoder(output), dim=-1)
+            if self.adaptive:
+                decoded = self.adaptive_softmax.log_prob(output)
+            else:
+                decoded = F.log_softmax(self.decoder(output), dim=-1)
 
-        output_dict['log_probs'] = decoded
-        output_dict['hidden_vec'] = decoded
+            output_dict['log_probs'] = decoded
+            output_dict['hidden_vec'] = decoded
 
-        if targets is not None:
-            output_dict['loss_lm'] = self.criterion(output_dict['log_probs'].view(-1, self.ntoken),
-                                                    targets.view(-1))
+            if targets is not None:
+                output_dict['loss_lm'] = self.criterion(output_dict['log_probs'].view(-1, self.ntoken),
+                                                        targets.view(-1))
 
         return output_dict
 

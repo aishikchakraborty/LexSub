@@ -20,6 +20,7 @@ if [ "${data}" == "wikitext103" ]; then
     export data="wikitext-103"
     export nhid="${nhid:=1200}"
     export adaptive=true
+    #export nce=true
     export time="${time:=2-23:00:00}"
     export mem="${mem:=90000}"
 fi

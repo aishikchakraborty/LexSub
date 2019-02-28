@@ -140,10 +140,10 @@ if [ -n "${nlayers}" ]; then
 fi
 
 if [ -z "${step}" ]; then
-    step=0
+    step=1
 fi
 
-if [ ${step} -lt 1 ]; then
+if [ ${step} -lt 2 ]; then
     $cmd
     step=`expr ${step} + 1`
 fi
@@ -152,12 +152,6 @@ if [ -z "${emb_filename}" ]; then
     emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}
 fi
 
-if [ ${step} -lt 2 ]; then
-    cd analogy_tasks;
-    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
-    step=`expr ${step} + 1`
-    cd -;
-fi
 
 export emb_filetxt=${output_dir}/${emb_filename}.txt
 export bidaf_input_size=$(expr ${task_emb_size} + 100)
@@ -191,3 +185,10 @@ do
     fi
     i=`expr ${i} + 1`
 done
+
+if [ ${step} -lt ${i} ]; then
+    cd analogy_tasks;
+    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
+    step=`expr ${step} + 1`
+    cd -;
+fi

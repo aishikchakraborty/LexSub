@@ -32,7 +32,7 @@
             "type": "embedding",
             "embedding_dim": ${task_emb_size},
             "pretrained_file": "${emb_filetxt}",
-            "trainable": true
+            "trainable": false
         },
         "token_characters": {
             "type": "character_encoding",

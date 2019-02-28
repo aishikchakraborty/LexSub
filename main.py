@@ -466,6 +466,7 @@ model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.model + '
 emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
 emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.txt')
 
+rel_emb_name_temp = os.path.join(args.save_emb, 'emb_%s_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
 
 vocab_name = os.path.join(args.save, 'vocab_' + args.data + '.pkl')
 pickle.dump(vocab, open(vocab_name, 'wb'))
@@ -524,6 +525,7 @@ if args.model != 'retro':
     print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'.format(
         test_loss, math.exp(test_loss), test_syn, test_ant, test_hyp, test_mer))
     print('=' * 89)
+
 print('Saving final learnt embeddings ')
 pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
 with open(emb_name_txt, 'w') as f:
@@ -531,3 +533,21 @@ with open(emb_name_txt, 'w') as f:
     for i in range(final_emb.shape[0]):
         f.write(vocab.itos[i] + ' ')
         f.write(' '.join([str(x) for x in final_emb[i, :]]) + '\n')
+
+for rel in args.lex_rels:
+    rel_emb_name = rel_emb_name_temp % rel
+    print('Saving lexical subspace embeddings : %s' % rel_emb_name)
+    if rel == 'syn':
+        rel_emb = model.wn.syn_proj(model.wn.embedding.weight)
+        pickle.dump(rel_emb.data, open(rel_emb_name, 'wb'))
+    elif rel == 'hyp':
+        rel_emb_1 = model.wn.hypn_proj(model.wn.embedding.weight)
+        pickle.dump(rel_emb_1.data, open(rel_emb_name_temp % ('hypn_hypernyms'), 'wb'))
+        rel_emb_2 = model.wn.hypn_rel(rel_emb_1)
+        pickle.dump(rel_emb_2.data, open(rel_emb_name_temp % ('hypn_hyponyms'), 'wb'))
+
+    elif rel == 'mer':
+        rel_emb_1 = model.wn.mern_proj(model.wn.embedding.weight)
+        pickle.dump(rel_emb_1.data, open(rel_emb_name_temp % ('mern_meronyms'), 'wb'))
+        rel_emb_2 = model.wn.mern_rel(rel_emb_1)
+        pickle.dump(rel_emb_2.data, open(rel_emb_name_temp % ('mern_holonyms'), 'wb'))

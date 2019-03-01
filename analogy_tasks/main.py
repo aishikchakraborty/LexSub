@@ -187,7 +187,8 @@ if args.analogy_task:
         ae.load_vocab()
     ae.load_google_dataset()
 elif args.sim_task:
-    datasets = ['bakerverb143', 'men3k', 'men_dev', 'men_test', 'radinskymturk', 'semeval17task2_test', 'semeval17task2_trial', 'simlex999', 'simverb3500', 'wordsim353_relatedness', 'wordsim353_similarity', 'yangpowersverb130', 'rarewords']
+    datasets = ['bakerverb143', 'men3k', 'men_dev', 'men_test', 'radinskymturk', 'semeval17task2_test', 'semeval17task2_trial', 'simlex999', 'simverb3500', 'wordsim353_relatedness', 'wordsim353_similarity', 'yangpowersverb130', 'rarewords','hyperlex', 'hyperlex-nouns', 'hyperlex_test']
+    # datasets = ['men3k', 'wordsim353_relatedness', 'simlex999', 'simverb3500', 'hyperlex', 'hyperlex-nouns', 'hyperlex_test']
     ae = WordSimilarity(datasets)
     if args.text:
         ae.vocab = vocab

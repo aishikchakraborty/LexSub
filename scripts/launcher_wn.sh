@@ -10,7 +10,7 @@
 ###########################
 
 set -ex
-echo $SLURM_JOBID - `hostname` - ${output_dir} >> ./lm_wn_machine_assignments.txt
+echo $(date '+%Y_%m_%d_%H_%M') - $SLURM_JOB_NAME - $SLURM_JOBID - `hostname` - ${output_dir} >> ./lm_wn_machine_assignments-v2.txt
 source activate lm_wn
 
 export emb_size="${emb_size:=300}"
@@ -152,14 +152,20 @@ if [ -z "${emb_filename}" ]; then
     emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}
 fi
 
+if [ ${step} -lt 3 ]; then
+    cd analogy_tasks;
+    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
+    step=`expr ${step} + 1`
+    cd -;
+fi
 
 export emb_filetxt=${output_dir}/${emb_filename}.txt
 export bidaf_input_size=$(expr ${task_emb_size} + 100)
 export ner_input_size=$(expr ${task_emb_size} + 128)
 
 declare -A task2time
-task2time["ner"]="3:00:00"
-task2time["sst"]="3:00:00"
+task2time["ner"]="2:00:00"
+task2time["sst"]="00:30:00"
 task2time["esim"]="6:00:00"
 task2time["bidaf"]="6:00:00"
 
@@ -168,15 +174,15 @@ run_extrinsic_task () {
     task_file=$(mktemp ${output_dir}/${task}-${emb_filename}.XXXXXX)
     envsubst < ./extrinsic_tasks/local/${task}_template.jsonnet > ${task_file}
     sbatch -o ${output_dir}/${task}_std.out \
+        -J "${task}_${SLURM_JOB_NAME}" \
         -e ${output_dir}/${task}_std.out \
         -A ${account} \
         -t "${task2time[$task]}" \
         scripts/launcher_basic.sh allennlp train ${task_file} -s ${output_dir}/${task}/
-    rm ${task_file}
 }
 
 
-i=3
+i=4
 for ext_task in ner sst esim bidaf
 do
     if [ ${step} -lt ${i} ]; then
@@ -186,9 +192,3 @@ do
     i=`expr ${i} + 1`
 done
 
-if [ ${step} -lt ${i} ]; then
-    cd analogy_tasks;
-    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
-    step=`expr ${step} + 1`
-    cd -;
-fi

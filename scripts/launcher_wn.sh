@@ -143,20 +143,32 @@ if [ -z "${step}" ]; then
     step=1
 fi
 
+step_till=${step_till:=100}
+echo ${step_till}
+
 if [ ${step} -lt 2 ]; then
     $cmd
     step=`expr ${step} + 1`
+
+    if [ ${step} -gt ${step_till} ]; then
+        exit 1;
+    fi
 fi
 
 if [ -z "${emb_filename}" ]; then
     emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}
 fi
 
+
 if [ ${step} -lt 3 ]; then
     cd analogy_tasks;
     python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
     step=`expr ${step} + 1`
     cd -;
+
+    if [ ${step} -gt ${step_till} ]; then
+        exit 1;
+    fi
 fi
 
 export emb_filetxt=${output_dir}/${emb_filename}.txt
@@ -190,5 +202,9 @@ do
         step=`expr ${step} + 1`
     fi
     i=`expr ${i} + 1`
+
+    if [ ${step} -gt ${step_till} ]; then
+        exit 1;
+    fi
 done
 

@@ -9,4 +9,5 @@
 ###########################
 
 set -eux
+echo $(date '+%Y_%m_%d_%H_%M') - $SLURM_JOB_NAME - $SLURM_JOBID - `hostname` - ${output_dir} >> ./lm_wn_task_machine_assignments.txt
 $@

@@ -17,14 +17,38 @@ parser.add_argument('--analogy-task', action='store_true',
                     help='get Google Analogy Task Results')
 parser.add_argument('--sim-task', action='store_true',
                     help='use similarity task')
+parser.add_argument('--text', action='store_true', help='read embedding files in text format')
+
 args = parser.parse_args()
+
+def read_text_file(file_path):
+    print('Reading embedding files')
+    vocab, emb = [], []
+    f = open(file_path, 'r')
+    for lines in f:
+        lines = lines.strip().split()
+        vocab.append(lines[0])
+        emb.append([float(val) for val in lines[1:]])
+    vocab = Vocab(vocab)
+    print('Finished Reading Embedding File')
+    print(np.array(emb).shape)
+    return vocab, np.array(emb, dtype=np.float64)
+
+
+class Vocab():
+    def __init__(self, vocab):
+        self.itos = vocab
+        self.stoi = {w:i for i, w in enumerate(vocab)}
+
+
 
 class WordSimilarity():
     def __init__(self, datasets):
-        self.vocab = pickle.load(open(args.vocab, 'rb'))
         self.datasets = datasets
 
     def load_vocab(self):
+        self.vocab = pickle.load(open(args.vocab, 'rb'))
+
         self.emb = pickle.load(open(args.emb, 'rb'))
 
     def cossim(self, v1, v2):
@@ -77,10 +101,11 @@ class WordSimilarity():
 
 class AnalogyExperiment():
     def __init__(self):
-        self.vocab = pickle.load(open(args.vocab,'rb'))
-        print(self.vocab)
+        pass
 
     def load_vocab(self):
+        self.vocab = pickle.load(open(args.vocab,'rb'))
+        print(self.vocab)
         self.emb = pickle.load(open(args.emb, 'rb'))
 
     def cossim(self, v1, v2):
@@ -151,12 +176,22 @@ class AnalogyExperiment():
             print(float(correct_pred)/float(total_examples))
 
 
+if args.text:
+    vocab, emb = read_text_file(args.emb)
 if args.analogy_task:
     ae = AnalogyExperiment()
-    ae.load_vocab()
+    if args.text:
+        ae.vocab = vocab
+        ae.emb = torch.tensor(emb).cuda()
+    else:
+        ae.load_vocab()
     ae.load_google_dataset()
 elif args.sim_task:
     datasets = ['bakerverb143', 'men3k', 'men_dev', 'men_test', 'radinskymturk', 'semeval17task2_test', 'semeval17task2_trial', 'simlex999', 'simverb3500', 'wordsim353_relatedness', 'wordsim353_similarity', 'yangpowersverb130', 'rarewords']
     ae = WordSimilarity(datasets)
-    ae.load_vocab()
+    if args.text:
+        ae.vocab = vocab
+        ae.emb = torch.tensor(emb).cuda()
+    else:
+        ae.load_vocab()
     ae.load_similarity()

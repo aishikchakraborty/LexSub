@@ -4,6 +4,7 @@ import hashlib
 import math
 import os
 import numpy as np
+import random
 import time
 import torch
 import torch.nn as nn
@@ -61,7 +62,7 @@ parser.add_argument('--random_seed', type=int, default=13370,
                     help='random seed')
 parser.add_argument('--numpy_seed', type=int, default=1337,
                     help='numpy random seed')
-parser.add_argument('--pytorch_seed', type=int, default=133,
+parser.add_argument('--torch_seed', type=int, default=133,
                     help='pytorch random seed')
 parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
@@ -92,15 +93,16 @@ parser.add_argument('--nce', action='store_true', help='Use nce for training.')
 parser.add_argument('--nce_loss', type=str, default='nce', help='Type of nce to use.')
 args = parser.parse_args()
 
-if seed is not None:
-    random.seed(seed)
-if numpy_seed is not None:
-    np.random.seed(numpy_seed)
-if torch_seed is not None:
-    torch.manual_seed(torch_seed)
+print(args)
+if args.random_seed is not None:
+    random.seed(args.random_seed)
+if args.numpy_seed is not None:
+    np.random.seed(args.numpy_seed)
+if args.torch_seed is not None:
+    torch.manual_seed(args.torch_seed)
     # Seed all GPUs with the same seed if available.
     if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(torch_seed)
+        torch.cuda.manual_seed_all(args.torch_seed)
 
 if torch.cuda.is_available():
     if not args.cuda:

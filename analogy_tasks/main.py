@@ -19,6 +19,7 @@ parser.add_argument('--analogy-task', action='store_true',
 parser.add_argument('--sim-task', action='store_true',
                     help='use similarity task')
 parser.add_argument('--text', action='store_true', help='read embedding files in text format')
+parser.add_argument('--prefix', type=str, default='', help='Prefix to add to word similarity task names.')
 
 args = parser.parse_args()
 
@@ -63,7 +64,7 @@ class WordSimilarity():
     def load_similarity(self):
         for d in self.datasets:
             print('*'*89)
-            print(d)
+            print(args.prefix + '_' + d if args.prefix != '' else d)
             f = open('unsup_datasets/' + d + '.csv', 'r')
             data_reader = csv.reader(f, delimiter=',')
             missing_words = 0

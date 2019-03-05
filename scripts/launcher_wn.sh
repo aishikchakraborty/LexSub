@@ -185,18 +185,7 @@ if [ ${step} -lt 2 ]; then
     fi
 fi
 
-if [ ${step} -lt 3 ]; then
-    cd analogy_tasks;
-    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
-    step=`expr ${step} + 1`
-    cd -;
-
-    if [ ${step} -gt ${step_till} ]; then
-        exit 1;
-    fi
-fi
-
-i=4
+i=3
 for ext_task in ner sst esim bidaf
 do
     if [ ${step} -lt ${i} ]; then
@@ -210,25 +199,37 @@ do
     fi
 done
 
+if [ ${step} -lt 7 ]; then
+    cd analogy_tasks;
+    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
+    step=`expr ${step} + 1`
+    cd -;
+
+    if [ ${step} -gt ${step_till} ]; then
+        exit 1;
+    fi
+fi
+
+
 if [ ${step} -lt 8 ]; then
 
     cd analogy_tasks;
     if [ -n "${syn}" ]; then
         emb_syn_filename1="../${output_dir}/emb_syn_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}.pkl"
         emb_syn_filename2="../${output_dir}/emb_syn_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}.pkl"
-        python main.py --sim-task --emb ${emb_syn_filename1} --emb2 ${emb_syn_filename2} --vocab  ../${output_dir}/vocab_${data}.pkl
+        python main.py --sim-task --emb ${emb_syn_filename1} --emb2 ${emb_syn_filename2} --vocab  ../${output_dir}/vocab_${data}.pkl --prefix syn
     fi
 
     if [ -n "${hyp}" ]; then
         emb_hyp_filename1="../${output_dir}/emb_hypn_hyponyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}.pkl"
         emb_hyp_filename2="../${output_dir}/emb_hypn_hypernyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}.pkl"
-        python main.py --sim-task --emb ${emb_hyp_filename1} --emb2 ${emb_hyp_filename2} --vocab  ../${output_dir}/vocab_${data}.pkl
+        python main.py --sim-task --emb ${emb_hyp_filename1} --emb2 ${emb_hyp_filename2} --vocab  ../${output_dir}/vocab_${data}.pkl --prefix hyp
     fi
 
     if [ -n "${mer}" ]; then
         emb_mer_filename1="../${output_dir}/emb_mern_meronyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}.pkl"
         emb_mer_filename2="../${output_dir}/emb_mern_holonyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}.pkl"
-        python main.py --sim-task --emb ${emb_mer_filename1} --emb2 ${emb_mer_filename2} --vocab  ../${output_dir}/vocab_${data}.pkl
+        python main.py --sim-task --emb ${emb_mer_filename1} --emb2 ${emb_mer_filename2} --vocab  ../${output_dir}/vocab_${data}.pkl --prefix mer
     fi
     cd -;
 fi

@@ -57,8 +57,12 @@ parser.add_argument('--dropout', type=float, default=0.2,
                     help='dropout applied to layers (0 = no dropout)')
 parser.add_argument('--tied', action='store_true',
                     help='tie the word embedding and softmax weights')
-parser.add_argument('--seed', type=int, default=1111,
+parser.add_argument('--random_seed', type=int, default=13370,
                     help='random seed')
+parser.add_argument('--numpy_seed', type=int, default=1337,
+                    help='numpy random seed')
+parser.add_argument('--pytorch_seed', type=int, default=133,
+                    help='pytorch random seed')
 parser.add_argument('--cuda', action='store_true',
                     help='use CUDA')
 parser.add_argument('--gpu', type=int, default=0,
@@ -73,7 +77,7 @@ parser.add_argument('--onnx-export', type=str, default='',
                     help='path to export the final model in onnx format')
 parser.add_argument('--adaptive', action='store_true',
                     help='Use adaptive softmax. This speeds up computation.')
-parser.add_argument('--wn_ratio', type=float, default=0.2,
+parser.add_argument('--wn_ratio', type=float, default=0.1,
                     help='dropout applied to layers (0 = no dropout)')
 parser.add_argument('--distance', type=str, default='cosine',
                     help='Type of distance to use. Options are [pairwise, cosine]')
@@ -88,8 +92,16 @@ parser.add_argument('--nce', action='store_true', help='Use nce for training.')
 parser.add_argument('--nce_loss', type=str, default='nce', help='Type of nce to use.')
 args = parser.parse_args()
 
-# Set the random seed manually for reproducibility.
-torch.manual_seed(args.seed)
+if seed is not None:
+    random.seed(seed)
+if numpy_seed is not None:
+    np.random.seed(numpy_seed)
+if torch_seed is not None:
+    torch.manual_seed(torch_seed)
+    # Seed all GPUs with the same seed if available.
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(torch_seed)
+
 if torch.cuda.is_available():
     if not args.cuda:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
@@ -250,7 +262,7 @@ criterion = nn.NLLLoss()
 
 optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
 milestones=[100] if args.optim != 'sgd' else \
-            ([1,2,3] if args.data == 'wikitext-103' else \
+            ([3,6,7] if args.data == 'wikitext-103' else \
                 [10, 25, 35, 45]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
 print(milestones)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
@@ -366,6 +378,7 @@ def train():
         meronyms = meronyms.view(-1, 2)
 
         optimizer.zero_grad()
+        wn_ratio = args.wn_ratio
 
         if args.model == 'retro':
             output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
@@ -398,7 +411,7 @@ def train():
             loss_ant = output_dict.get('loss_ant',
                                         torch.sum(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)) * ant_mask)/ant_len)
 
-            total_loss += loss_syn + loss_ant
+            total_loss += wn_ratio * (loss_syn + loss_ant)
             total_loss_syn += loss_syn.item()
             total_loss_ant += loss_ant.item()
 
@@ -411,7 +424,7 @@ def train():
                 hyp_len = torch.sum(hyp_mask)
                 loss_hyp = torch.sum(dist_fn(emb_hyp1, emb_hyp2) * hyp_mask)/hyp_len
 
-            total_loss += loss_hyp
+            total_loss += wn_ratio * loss_hyp
             total_loss_hyp += loss_hyp.item()
 
         if 'mer' in args.lex_rels:
@@ -423,7 +436,7 @@ def train():
                 mer_len = torch.sum(mer_mask)
                 loss_mer = torch.sum(dist_fn(emb_mern1, emb_mern2) * mer_mask)/mer_len
 
-            total_loss += loss_mer
+            total_loss += wn_ratio * loss_mer
             total_loss_mern += loss_mer.item()
 
         if args.reg:

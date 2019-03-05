@@ -19,8 +19,8 @@ if [ "${data}" == "wikitext103" ]; then
     export bptt="${bptt:=50}"
     export data="wikitext-103"
     export nhid="${nhid:=1200}"
-    export adaptive=true
-    #export nce=true
+    #export adaptive=true
+    export nce=true
     export time="${time:=1-03:00:00}"
     export mem="${mem:=90000}"
 fi
@@ -30,7 +30,7 @@ if [ "${mdl}" == "retro" ]; then
     export bptt="${bptt:=1}"
     export data=${data:=glove}
     export bsize=${bsize:=512}
-    export lr=${lr:=1}
+    export lr=${lr:=2}
     export optim="${optim:=adagrad}"
     export time="${time:=6:00:00}"
     export mem="${mem:=30000}"

@@ -139,6 +139,10 @@ if [ -n "${nlayers}" ]; then
     cmd+=" --nlayers ${nlayers} "
 fi
 
+if [ ${wn_ratio} ]; then
+    cmd+=" --wn_ratio ${wn_ratio}"
+fi
+
 if [ -z "${step}" ]; then
     step=1
 fi
@@ -146,29 +150,8 @@ fi
 step_till=${step_till:=100}
 echo ${step_till}
 
-if [ ${step} -lt 2 ]; then
-    $cmd
-    step=`expr ${step} + 1`
-
-    if [ ${step} -gt ${step_till} ]; then
-        exit 1;
-    fi
-fi
-
 if [ -z "${emb_filename}" ]; then
     emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}
-fi
-
-
-if [ ${step} -lt 3 ]; then
-    cd analogy_tasks;
-    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
-    step=`expr ${step} + 1`
-    cd -;
-
-    if [ ${step} -gt ${step_till} ]; then
-        exit 1;
-    fi
 fi
 
 export emb_filetxt=${output_dir}/${emb_filename}.txt
@@ -176,9 +159,9 @@ export bidaf_input_size=$(expr ${task_emb_size} + 100)
 export ner_input_size=$(expr ${task_emb_size} + 128)
 
 declare -A task2time
-task2time["ner"]="2:00:00"
-task2time["sst"]="00:30:00"
-task2time["esim"]="6:00:00"
+task2time["ner"]="3:00:00"
+task2time["sst"]="01:00:00"
+task2time["esim"]="8:00:00"
 task2time["bidaf"]="6:00:00"
 
 run_extrinsic_task () {
@@ -193,6 +176,25 @@ run_extrinsic_task () {
         scripts/launcher_basic.sh allennlp train ${task_file} -s ${output_dir}/${task}/
 }
 
+if [ ${step} -lt 2 ]; then
+    $cmd
+    step=`expr ${step} + 1`
+
+    if [ ${step} -gt ${step_till} ]; then
+        exit 1;
+    fi
+fi
+
+if [ ${step} -lt 3 ]; then
+    cd analogy_tasks;
+    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.txt
+    step=`expr ${step} + 1`
+    cd -;
+
+    if [ ${step} -gt ${step_till} ]; then
+        exit 1;
+    fi
+fi
 
 i=4
 for ext_task in ner sst esim bidaf
@@ -207,4 +209,3 @@ do
         exit 1;
     fi
 done
-

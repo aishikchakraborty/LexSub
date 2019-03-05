@@ -11,6 +11,7 @@ import _pickle as pickle
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--emb', type=str, default='../emb_Vanilla.pkl',
                     help='location of the trained embeddings')
+parser.add_argument('--emb2', type=str, help='location of second embedding. This is only different from emb1 in case of hyp and mer subspace embedding.')
 parser.add_argument('--vocab', type=str, default='../vocab_wikitext-103.pkl',
                     help='location of the vocab')
 parser.add_argument('--analogy-task', action='store_true',
@@ -49,7 +50,11 @@ class WordSimilarity():
     def load_vocab(self):
         self.vocab = pickle.load(open(args.vocab, 'rb'))
 
-        self.emb = pickle.load(open(args.emb, 'rb'))
+        self.emb1 = pickle.load(open(args.emb, 'rb'))
+        if args.emb2:
+            self.emb2 = pickle.load(open(args.emb2, 'rb'))
+        else:
+            self.emb2 = pickle.load(open(args.emb, 'rb'))
 
     def cossim(self, v1, v2):
         dot = v1.dot(v2)
@@ -76,7 +81,7 @@ class WordSimilarity():
                     print('Processed ' + str(i+1) + ' test examples')
                 try:
                     w1_ = self.vocab.stoi[w1]
-                    w1 = self.emb[w1_]
+                    w1 = self.emb1[w1_]
                     if w1_ == 0:
                         all_present = False
                 except:
@@ -84,7 +89,7 @@ class WordSimilarity():
                     # w1 = self.sem_emb[self.['<unk>']].reshape(-1, 1)
                 try:
                     w2_ = self.vocab.stoi[w2]
-                    w2 = self.emb[w2_]
+                    w2 = self.emb2[w2_]
                     if w2_ == 0:
                         all_present = False
                 except:
@@ -192,7 +197,8 @@ elif args.sim_task:
     ae = WordSimilarity(datasets)
     if args.text:
         ae.vocab = vocab
-        ae.emb = torch.tensor(emb).cuda()
+        ae.emb1 = torch.tensor(emb).cuda()
+        ae.emb2 = torch.tensor(emb).cuda()
     else:
         ae.load_vocab()
     ae.load_similarity()

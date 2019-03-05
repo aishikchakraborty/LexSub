@@ -187,7 +187,7 @@ fi
 
 if [ ${step} -lt 3 ]; then
     cd analogy_tasks;
-    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.txt
+    python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
     step=`expr ${step} + 1`
     cd -;
 

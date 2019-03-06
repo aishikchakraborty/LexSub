@@ -45,9 +45,9 @@ with open('lm_wn_machine_assignments%s.txt' % ('-v2' if version=='v2' else ''), 
                         if m is not None:
                             output['test ppl'] = '%.4f' % float(m.group(1))
 
-                    if line in set(['men3k', 'simlex999', 'simverb3500', 'wordsim353_relatedness', 'hyperlex', 'hyperlex-nouns', 'hyperlex_test' \
-                                    'syn_men3k', 'syn_simlex999', 'syn_simverb3500', 'syn_wordsim353_relatedness', 'syn_hyperlex', 'syn_hyperlex-nouns', 'syn_hyperlex_test'\
-                                    'hyp_men3k', 'hyp_simlex999', 'hyp_simverb3500', 'hyp_wordsim353_relatedness', 'hyp_hyperlex', 'hyp_hyperlex-nouns', 'hyp_hyperlex_test'\
+                    if line in set(['men3k', 'simlex999', 'simverb3500', 'wordsim353_relatedness', 'hyperlex', 'hyperlex-nouns', 'hyperlex_test', \
+                                    'syn_men3k', 'syn_simlex999', 'syn_simverb3500', 'syn_wordsim353_relatedness', 'syn_hyperlex', 'syn_hyperlex-nouns', 'syn_hyperlex_test', \
+                                    'hyp_men3k', 'hyp_simlex999', 'hyp_simverb3500', 'hyp_wordsim353_relatedness', 'hyp_hyperlex', 'hyp_hyperlex-nouns', 'hyp_hyperlex_test', \
                                     'mer_men3k', 'mer_simlex999', 'mer_simverb3500', 'mer_wordsim353_relatedness', 'mer_hyperlex', 'mer_hyperlex-nouns', 'mer_hyperlex_test']):
                         wait_for_spearman = True
                         ws_bench = line
@@ -72,9 +72,9 @@ with open('lm_wn_machine_assignments%s.txt' % ('-v2' if version=='v2' else ''), 
     json.dump(outputs, output_json, indent=2, separators=(',', ': '))
     fields = ['id', 'date', 'job_name', 'path', 'emb_file', \
                 'men3k', 'wordsim353_relatedness', 'simlex999', 'simverb3500',  'hyperlex', 'hyperlex-nouns', 'hyperlex_test',  \
-                'syn_men3k', 'syn_simlex999', 'syn_simverb3500', 'syn_wordsim353_relatedness', 'syn_hyperlex', 'syn_hyperlex-nouns', 'syn_hyperlex_test'\
-                'hyp_men3k', 'hyp_simlex999', 'hyp_simverb3500', 'hyp_wordsim353_relatedness', 'hyp_hyperlex', 'hyp_hyperlex-nouns', 'hyp_hyperlex_test'\
-                'mer_men3k', 'mer_simlex999', 'mer_simverb3500', 'mer_wordsim353_relatedness', 'mer_hyperlex', 'mer_hyperlex-nouns', 'mer_hyperlex_test' \
+                'syn_men3k', 'syn_simlex999', 'syn_simverb3500', 'syn_wordsim353_relatedness', 'syn_hyperlex', 'syn_hyperlex-nouns', 'syn_hyperlex_test', \
+                'hyp_men3k', 'hyp_simlex999', 'hyp_simverb3500', 'hyp_wordsim353_relatedness', 'hyp_hyperlex', 'hyp_hyperlex-nouns', 'hyp_hyperlex_test', \
+                'mer_men3k', 'mer_simlex999', 'mer_simverb3500', 'mer_wordsim353_relatedness', 'mer_hyperlex', 'mer_hyperlex-nouns', 'mer_hyperlex_test', \
                 'ner', 'sst', 'esim', 'bidaf']
     output_csv.write('%s\n' % ','.join(fields))
     for output in outputs:

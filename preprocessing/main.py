@@ -297,7 +297,10 @@ if args.model == 'retro':
 else:
     create_vocab(os.path.join(args.data, 'train.txt'))
 
-out_dir = os.path.join(args.data, 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size))
+out_dir = os.path.join(args.data,
+                        'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size) if args.model == 'rnn' else \
+                        'annotated_{}'.format(args.model))
+
 if not os.path.exists(out_dir):
     os.mkdir(out_dir)
 

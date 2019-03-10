@@ -17,6 +17,7 @@ import model
 import csv
 csv.field_size_limit(100000000)
 
+from random import shuffle
 from torchtext import data, datasets
 import torchtext
 import csv
@@ -190,6 +191,8 @@ def dist_fn(x1, x2):
 
 annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)
 train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
+train_iter=[x for x in train_iter]
+valid_iter=[x for x in valid_iter]
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
@@ -370,6 +373,9 @@ def train():
     start_time = time.time()
     if args.model != 'retro':
         hidden = model.init_hidden(args.batch_size)
+
+    if args.model != 'rnn':
+        shuffle(train_iter)
 
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target

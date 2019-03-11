@@ -10,9 +10,6 @@
         "type": "single_id",
         "lowercase_tokens": true
       },
-      "token_characters": {
-        "type": "characters"
-      },
     }
   },
   "train_data_path": "extrinsic_tasks/datasets/ner/eng.train",
@@ -34,24 +31,10 @@
             "pretrained_file": "${emb_filetxt}",
             "trainable": false
         },
-        "token_characters": {
-            "type": "character_encoding",
-            "embedding": {
-                "embedding_dim": 16
-            },
-            "encoder": {
-                "type": "cnn",
-                "embedding_dim": 16,
-                "num_filters": 128,
-                "ngram_filter_sizes": [3],
-                "conv_layer_activation": "relu"
-            }
-          }
-       },
     },
     "encoder": {
         "type": "lstm",
-        "input_size": ${ner_input_size},
+        "input_size": ${task_emb_size},
         "hidden_size": 200,
         "num_layers": 2,
         "dropout": 0.5,

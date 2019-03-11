@@ -8,14 +8,6 @@
       "tokens": {
         "type": "single_id",
         "lowercase_tokens": true
-      },
-      "token_characters": {
-        "type": "characters",
-        "character_tokenizer": {
-          "byte_encoding": "utf-8",
-          "start_tokens": [259],
-          "end_tokens": [260]
-        }
       }
     }
   },
@@ -31,27 +23,13 @@
                 "embedding_dim": ${task_emb_size},
                 "trainable": false
             },
-            "token_characters": {
-                "type": "character_encoding",
-                "embedding": {
-                "num_embeddings": 262,
-                "embedding_dim": 16
-                },
-                "encoder": {
-                "type": "cnn",
-                "embedding_dim": 16,
-                "num_filters": 100,
-                "ngram_filter_sizes": [5]
-                },
-                "dropout": 0.2
-            }
         }
     },
     "num_highway_layers": 2,
     "phrase_layer": {
       "type": "lstm",
       "bidirectional": true,
-      "input_size": ${bidaf_input_size},
+      "input_size": ${task_emb_size},
       "hidden_size": 100,
       "num_layers": 1,
       "dropout": 0.2

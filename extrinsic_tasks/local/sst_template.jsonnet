@@ -2,12 +2,24 @@
   "dataset_reader":{
     "type": "sst_tokens",
     "use_subtrees": true,
-    "granularity": "5-class"
+    "granularity": "2-class",
+    "token_indexers": {
+      "tokens": {
+        "type": "single_id",
+        "lowercase_tokens": true
+      }
+    }
   },
   "validation_dataset_reader":{
     "type": "sst_tokens",
     "use_subtrees": false,
-    "granularity": "5-class"
+    "granularity": "2-class",
+    "token_indexers": {
+      "tokens": {
+        "type": "single_id",
+        "lowercase_tokens": true
+      }
+    }
   },
   "train_data_path": "extrinsic_tasks/datasets/sst/train.txt",
   "validation_data_path": "extrinsic_tasks/datasets/sst/dev.txt",
@@ -51,7 +63,7 @@
     "output_layer": {
         "input_dim": 2400,
         "num_layers": 3,
-        "output_dims": [1200, 600, 5],
+        "output_dims": [1200, 600, 2],
         "pool_sizes": 4,
         "dropout": [0.2, 0.3, 0.0]
     }

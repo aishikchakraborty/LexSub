@@ -21,3 +21,6 @@
 12469919 - gra984 - output/wikitext-2_skipgram_vanilla_lower/2019_03_10_23_44
 12473502 - gra984 - output/wikitext-2_skipgram_vanilla_lower/2019_03_11_00_19
 12474559 - gra984 - output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14
+12487014 - gra985 - output/wikitext-2_skipgram_vanilla_lower/2019_03_11_12_26
+12487014 - gra985 - output/wikitext-2_skipgram_vanilla_lower/2019_03_11_12_26
+12487014 - gra985 - output/wikitext-2_skipgram_vanilla_lower/2019_03_11_12_28

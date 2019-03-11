@@ -75,5 +75,5 @@ export output_dir=${output_dir:=$dir}
 account="${account:=rrg-dprecup}"
 
 mkdir -p ${output_dir}
-sbatch -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --mem ${mem} scripts/launcher_wn.sh
-# ./scripts/launcher_wn.sh
+# sbatch -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --mem ${mem} scripts/launcher_wn.sh
+./scripts/launcher_wn.sh

@@ -11,8 +11,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.onnx
 import _pickle as pickle
-from tqdm import tqdm
-# import dill
 
 import model
 
@@ -170,35 +168,32 @@ class Dataset(data.TabularDataset):
 
         train, valid, test = dataset
 
-        if not args.retro:
-            TEXT_FIELD.build_vocab(train)
-        else:
+        if args.model == 'retro':
             vec = torchtext.vocab.Vectors('glove.6B.300d.txt', cache='data/glove')
             TEXT_FIELD.build_vocab(train, vectors=vec)
-        
+        else:
+            TEXT_FIELD.build_vocab(train)
         WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
 
         train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
                                                 batch_size=batch_size, device=device,
-                                                shuffle=False, repeat=False, sort=False)
-        if args.retro:
-            return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
-        else:
-            return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab
+                                                shuffle=bool(args.model != 'rnn'), repeat=False, sort=False)
+
+        return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
+
 
 def dist_fn(x1, x2):
     if args.distance == 'cosine':
-        return 1 - F.cosine_similarity(x1,x2)
-    else:
+        return  1 - F.cosine_similarity(x1,x2)
+    elif args.distance == 'pairwise':
         return F.pairwise_distance(x1, x2)
 
-# dist_fn = lambda x1,x2: 1 - F.cosine_similarity(x1,x2) if args.distance == 'cosine' else torch.sum(torch.pow(x1-x2, 2), 1)
+annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)
+train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
+train_iter = [x for x in train_iter]
+valid_iter = [x for x in valid_iter]
+test_iter = [x for x in test_iter]
 
-if args.retro:
-    train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size)), device=device)
-    print(pretrained.shape)
-else:
-    train_iter, valid_iter, test_iter, vocab = Dataset.iters(dataset_dir=os.path.join('./data', args.data, 'annotated_{}_{}'.format(args.bptt, args.batch_size)), device=device)
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
 # train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
@@ -226,25 +221,58 @@ for key, value in vocab.freqs.items():
     idx2freq[vocab.stoi[key]] = value
 idx2freq = torch.tensor(idx2freq, dtype=torch.float)
 
-if args.seg:
-    lm_model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout,
-                              cutoffs=cutoffs,
-                              tie_weights=args.tied,
-                              adaptive=args.adaptive).to(device)
-    wn_model = model.WNModel(lm_model.encoder, args.emsize, args.wn_hid, pad_idx,
+if args.model == 'rnn':
+    wn_offset = args.emsize if args.extend_wn else 0
+    em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
+
+    lm_model = model.RNNModel(args.rnn_type, ntokens, em_dim, args.nhid, args.nlayers, idx2freq,
+                              args.dropout, cutoffs=cutoffs, tie_weights=args.tied, adaptive=args.adaptive,
+                              proj_lm=args.extend_wn, lm_dim=args.emsize,
+                              fixed=args.fixed_wn, random=args.random_wn, nce=args.nce, nce_loss=args.nce_loss).to(device)
+    wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
+                             wn_offset=wn_offset,
+                             antonym_margin=args.margin,
+                             fixed=args.fixed_wn,
+                             random=args.random_wn,
+                             dist_fn=dist_fn).to(device)
+    model = model.WNLM(lm_model, wn_model).to(device)
+elif args.model == 'retro':
+    gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained.to(device), dist_fn=dist_fn).to(device)
+    wn_model = model.WNModel(args.lex_rels, gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
+                             wn_offset=0,
+                             antonym_margin=args.margin,
+                             fixed=args.fixed_wn,
+                             random=args.random_wn,
+                             dist_fn=dist_fn).to(device)
+    model = model.GloveModel(gl_model, wn_model).to(device)
+elif args.model == 'cbow':
+    wn_offset = args.emsize if args.extend_wn else 0
+    em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
+
+    lm_model = model.CBOWModel(ntokens, em_dim, idx2freq, cutoffs=cutoffs, adaptive=args.adaptive,
+                              proj_lm=args.extend_wn, lm_dim=args.emsize,
+                              fixed=args.fixed_wn, random=args.random_wn, nce=args.nce, nce_loss=args.nce_loss).to(device)
+    wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
+                             wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn).to(device)
 
     model = model.WNLM(lm_model, wn_model).to(device)
-elif args.retro:
-    gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained).to(device)
-    wn_model = model.WNModel(gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
+elif args.model == 'skipgram':
+    wn_offset = args.emsize if args.extend_wn else 0
+    em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
+
+    lm_model = model.SkipGramModel(ntokens, em_dim, idx2freq, cutoffs=cutoffs, adaptive=args.adaptive,
+                              proj_lm=args.extend_wn, lm_dim=args.emsize,
+                              fixed=args.fixed_wn, random=args.random_wn, nce=args.nce, nce_loss=args.nce_loss).to(device)
+    wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
+                             wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
-                             random=args.random_wn,
-                             ).to(device)
-    model = model.GloveModel(gl_model, wn_model).to(device)
+                             random=args.random_wn).to(device)
+
+    model = model.WNLM(lm_model, wn_model).to(device)
 else:
     raise ValueError('Illegal model type: %s. Options are [rnn, cbow, retro]' % args.model)
 
@@ -252,16 +280,11 @@ else:
 
 criterion = nn.NLLLoss()
 
-optimizer = torch.optim.Adam(model.parameters(), lr=lr) if args.optim == 'adam' else torch.optim.SGD(model.parameters(), lr=lr)
-if args.data == 'wikitext-103':
-    milestones=[4,6,8]
-elif args.data == 'glove':
-    milestones=[6, 10, 14]
-else:
-    milestones=[10, 25, 35, 45]
-
-# milestones=[4,6,8] if args.data == 'wikitext-103' else [10, 25, 35, 45]
-
+optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
+milestones=[100] if args.optim != 'sgd' else \
+            ([3,6,7] if args.data == 'wikitext-103' else \
+                [10, 25, 35, 45]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
+print(milestones)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
 
 
@@ -334,8 +357,6 @@ def evaluate(data_source):
                 total_loss_hyp += loss_hyp
 
             if 'mer' in args.lex_rels:
-                # import pdb
-                # pdb.set_trace()
                 if 'loss_mer' in output_dict:
                     loss_mer = output_dict['loss_mer']
                 else:
@@ -355,7 +376,6 @@ def evaluate(data_source):
 
 def train():
     # Turn on training mode which enables dropout.
-    # import pdb; pdb.set_trace()
     model.train()
     total_loss_ = 0.
     total_loss_hyp = 0.
@@ -443,12 +463,9 @@ def train():
             total_loss += reg_loss
 
         total_loss.backward()
-        # for p in list(filter(lambda p: p.grad is not None, model.encoder.parameters())):
-        #     print(p.grad.data.norm(2).item())
 
-        if not args.retro:
-            # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
+        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
 
         total_loss_ += loss.item()
@@ -487,11 +504,11 @@ pickle.dump(vocab, open(vocab_name, 'wb'))
 print('Vocab Saved')
 
 try:
-    for epoch in tqdm(range(1, args.epochs+1)):
+    for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         train()
 
-        if not args.retro:
+        if args.model != 'retro':
             val_loss, loss_syn, loss_ant, loss_hyp, loss_mer = evaluate(valid_iter)
             print('-' * 89)
             print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'
@@ -518,7 +535,7 @@ try:
                 torch.save(model, f)
             print('Saving learnt embeddings : %s' % emb_name)
             pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
-            print(model.encoder.weight.data.cpu().numpy().shape)
+
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')
@@ -528,8 +545,8 @@ with open(model_name, 'rb') as f:
     model = torch.load(f)
     # after load the rnn params are not a continuous chunk of memory
     # this makes them a continuous chunk, and will speed up forward pass
-    if not args.retro:
-        model.rnn.flatten_parameters()
+    if args.model=='rnn':
+        model.lm.rnn.flatten_parameters()
 
 
 # Run on test data.

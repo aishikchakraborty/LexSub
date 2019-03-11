@@ -10,18 +10,17 @@ if [ "${data}" == "wikitext2" ]; then
     export bptt="${bptt:=35}"
     export data="wikitext-2"
     export nhid="${nhid:=300}"
-    time="${time:=6:00:00}"
+    time="${time:=4:00:00}"
     export mem="${mem:=30000}"
 fi
 
 if [ "${data}" == "wikitext103" ]; then
-    export epoch="${epoch:=5}"
+    export epoch="${epoch:=9}"
     export bptt="${bptt:=50}"
     export data="wikitext-103"
     export nhid="${nhid:=1200}"
-    #export adaptive=true
-    export nce=true
-    export time="${time:=1-03:00:00}"
+    export adaptive=true
+    export time="${time:=2-23:00:00}"
     export mem="${mem:=90000}"
 fi
 
@@ -30,9 +29,9 @@ if [ "${mdl}" == "retro" ]; then
     export bptt="${bptt:=1}"
     export data=${data:=glove}
     export bsize=${bsize:=512}
-    export lr=${lr:=2}
+    export lr=${lr:=1}
     export optim="${optim:=adagrad}"
-    export time="${time:=6:00:00}"
+    export time="${time:=23:00:00}"
     export mem="${mem:=30000}"
 fi
 
@@ -62,24 +61,19 @@ if [ -n "$vanilla" ] || [ "$lexs" == "" ]; then
 fi
 
 
-job_name="${data}_${mdl}_${lexs}"
-job_name=${job_name}"$([[ $reg ]] && echo _reg || echo '')"
-job_name=${job_name}"$([[ $fixed_wn ]] && echo _fixed || echo '')"
-job_name=${job_name}"$([[ $random_wn ]] && echo _radom || echo '')"
-job_name=${job_name}"$([[ $seg ]] && echo _seg || echo '')"
-job_name=${job_name}"$([[ $lower ]] && echo _lower || echo '')"
-job_name=${job_name}"$([[ $extend_wn ]] && echo _extend || echo '')"
-dir="output/""${job_name}/""${date_suffix:=$(date '+%Y_%m_%d_%H_%M')}"
+dir="output/${data}_${mdl}_${lexs}"
+dir=${dir}"$([[ $reg ]] && echo _reg || echo '')"
+dir=${dir}"$([[ $fixed_wn ]] && echo _fixed || echo '')"
+dir=${dir}"$([[ $random_wn ]] && echo _radom || echo '')"
+dir=${dir}"$([[ $seg ]] && echo _seg || echo '')"
+dir=${dir}"$([[ $lower ]] && echo _lower || echo '')"
+dir=${dir}"$([[ $extend_wn ]] && echo _extend || echo '')"
+dir=${dir}"/$(date '+%Y_%m_%d_%H_%M')"
 
 export output_dir=${output_dir:=$dir}
 #account="${account:=rpp-bengioy}"
-export account="${account:=rrg-dprecup}"
-export mode="${mode:=slurm}"
+account="${account:=rrg-dprecup}"
 
 mkdir -p ${output_dir}
-
-if [ "${mode}" == "slurm" ]; then
-    sbatch -J "${job_name}" -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --mem ${mem} scripts/launcher_wn.sh
-else
-    ./scripts/launcher_wn.sh
-fi
+sbatch -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --mem ${mem} scripts/launcher_wn.sh
+# ./scripts/launcher_wn.sh

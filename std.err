@@ -1,0 +1,4 @@
+++ date +%Y_%m_%d_%H_%M
+++ hostname
++ echo 2019_03_11_11_22 - launcher_basic.sh - 12485074 - gra826 - /tmp/
++ echo Hello World

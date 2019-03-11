@@ -1,0 +1,261 @@
+Namespace(adaptive=False, annotated_dir=None, batch_size=2000, bptt=35, clip=0.25, cuda=True, data='wikitext-2', distance='cosine', dropout=0.2, emsize=300, epochs=14, extend_wn=False, fixed_wn=False, gpu=0, lex_rels=[], log_interval=200, lower=True, lr=20.0, margin=1, model='skipgram', nce=False, nce_loss='nce', nhid=300, nlayers=2, numpy_seed=1337, onnx_export='', optim='sgd', patience=1, random_seed=13370, random_wn=False, reg=False, rnn_type='LSTM', save='output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14', save_emb='output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14', tied=False, torch_seed=133, wn_hid=100, wn_ratio=0.1)
+[10, 25, 35, 45]
+Lex Rel List: []
+Vocab Saved
+| epoch   1 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 137.84 | loss 10.76 | ppl 22026.47 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   1 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 136.95 | loss  3.51 | ppl    33.51 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   1 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 136.92 | loss  1.32 | ppl     3.76 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   1 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 137.18 | loss  0.82 | ppl     2.27 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   1 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 136.95 | loss  0.59 | ppl     1.81 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch   1 | time: 152.82s | valid loss  0.41 | valid ppl     1.51 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch   2 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 137.78 | loss  0.44 | ppl     1.55 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   2 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 137.09 | loss  0.34 | ppl     1.41 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   2 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 137.24 | loss  0.29 | ppl     1.33 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   2 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 137.27 | loss  0.25 | ppl     1.28 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   2 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 137.14 | loss  0.22 | ppl     1.24 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch   2 | time: 152.99s | valid loss  0.16 | valid ppl     1.18 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch   3 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 137.58 | loss  0.19 | ppl     1.20 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   3 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 137.16 | loss  0.16 | ppl     1.17 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   3 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 136.91 | loss  0.14 | ppl     1.15 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   3 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 137.11 | loss  0.13 | ppl     1.14 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   3 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 137.32 | loss  0.12 | ppl     1.13 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch   3 | time: 152.86s | valid loss  0.10 | valid ppl     1.10 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch   4 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 137.84 | loss  0.11 | ppl     1.12 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   4 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 137.03 | loss  0.10 | ppl     1.10 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   4 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 137.00 | loss  0.09 | ppl     1.10 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   4 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 137.11 | loss  0.09 | ppl     1.09 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   4 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 137.24 | loss  0.08 | ppl     1.08 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch   4 | time: 152.85s | valid loss  0.06 | valid ppl     1.07 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch   5 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 137.86 | loss  0.07 | ppl     1.08 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   5 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 136.99 | loss  0.07 | ppl     1.07 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   5 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 137.12 | loss  0.06 | ppl     1.07 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   5 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 137.09 | loss  0.06 | ppl     1.06 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   5 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 137.14 | loss  0.06 | ppl     1.06 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch   5 | time: 152.87s | valid loss  0.05 | valid ppl     1.05 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch   6 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 137.76 | loss  0.06 | ppl     1.06 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   6 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 136.42 | loss  0.05 | ppl     1.05 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   6 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 135.82 | loss  0.05 | ppl     1.05 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   6 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 136.16 | loss  0.05 | ppl     1.05 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   6 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 136.01 | loss  0.05 | ppl     1.05 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch   6 | time: 151.94s | valid loss  0.04 | valid ppl     1.04 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch   7 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 136.48 | loss  0.04 | ppl     1.04 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   7 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 135.68 | loss  0.04 | ppl     1.04 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   7 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 135.91 | loss  0.04 | ppl     1.04 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   7 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 135.73 | loss  0.04 | ppl     1.04 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   7 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 135.99 | loss  0.04 | ppl     1.04 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch   7 | time: 151.49s | valid loss  0.03 | valid ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch   8 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 136.57 | loss  0.04 | ppl     1.04 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   8 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 135.73 | loss  0.03 | ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   8 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 136.07 | loss  0.03 | ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   8 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 135.94 | loss  0.03 | ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   8 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 136.00 | loss  0.03 | ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch   8 | time: 151.62s | valid loss  0.03 | valid ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch   9 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 136.67 | loss  0.03 | ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   9 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 135.73 | loss  0.03 | ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   9 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 135.80 | loss  0.03 | ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   9 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 135.86 | loss  0.03 | ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch   9 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 135.98 | loss  0.03 | ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch   9 | time: 151.55s | valid loss  0.02 | valid ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch  10 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 136.65 | loss  0.03 | ppl     1.03 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  10 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 136.00 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  10 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 135.88 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  10 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 135.75 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  10 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 135.97 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch  10 | time: 151.59s | valid loss  0.02 | valid ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch  11 |   200/ 1026 batches | lr 20.0000000000 | ms/batch 136.59 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  11 |   400/ 1026 batches | lr 20.0000000000 | ms/batch 135.84 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  11 |   600/ 1026 batches | lr 20.0000000000 | ms/batch 135.82 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  11 |   800/ 1026 batches | lr 20.0000000000 | ms/batch 135.88 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  11 |  1000/ 1026 batches | lr 20.0000000000 | ms/batch 135.94 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch  11 | time: 151.52s | valid loss  0.02 | valid ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch  12 |   200/ 1026 batches | lr 2.0000000000 | ms/batch 136.70 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  12 |   400/ 1026 batches | lr 2.0000000000 | ms/batch 136.03 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  12 |   600/ 1026 batches | lr 2.0000000000 | ms/batch 135.99 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  12 |   800/ 1026 batches | lr 2.0000000000 | ms/batch 135.94 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  12 |  1000/ 1026 batches | lr 2.0000000000 | ms/batch 135.68 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch  12 | time: 151.58s | valid loss  0.02 | valid ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch  13 |   200/ 1026 batches | lr 2.0000000000 | ms/batch 136.45 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  13 |   400/ 1026 batches | lr 2.0000000000 | ms/batch 135.85 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  13 |   600/ 1026 batches | lr 2.0000000000 | ms/batch 135.76 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  13 |   800/ 1026 batches | lr 2.0000000000 | ms/batch 136.13 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  13 |  1000/ 1026 batches | lr 2.0000000000 | ms/batch 135.71 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch  13 | time: 151.52s | valid loss  0.02 | valid ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+| epoch  14 |   200/ 1026 batches | lr 2.0000000000 | ms/batch 136.39 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  14 |   400/ 1026 batches | lr 2.0000000000 | ms/batch 135.79 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  14 |   600/ 1026 batches | lr 2.0000000000 | ms/batch 135.92 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  14 |   800/ 1026 batches | lr 2.0000000000 | ms/batch 135.81 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+| epoch  14 |  1000/ 1026 batches | lr 2.0000000000 | ms/batch 135.79 | loss  0.02 | ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00 | reg_loss  0.00
+
+-----------------------------------------------------------------------------------------
+| end of epoch  14 | time: 151.46s | valid loss  0.02 | valid ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+-----------------------------------------------------------------------------------------
+Saving learnt embeddings : output/wikitext-2_skipgram_vanilla_lower/2019_03_11_02_14/emb_wikitext-2_skipgram_vanilla_300_300_100_cosine.pkl
+=========================================================================================
+| End of training | test loss  0.02 | test ppl     1.02 | syn loss  0.00 | ant loss  0.00 | hyp loss  0.00 | mer loss  0.00
+=========================================================================================
+Saving final learnt embeddings 
+*****************************************************************************************
+bakerverb143
+Spearman: 0.10844008150798168
+Pearson: 0.18428506559403732
+*****************************************************************************************
+men3k
+Processed 1001 test examples
+Processed 2001 test examples
+Processed 3001 test examples
+Spearman: 0.08490959809610162
+Pearson: 0.06791112305660475
+*****************************************************************************************
+men_dev
+Processed 1001 test examples
+Processed 2001 test examples
+Spearman: 0.08951825246453504
+Pearson: 0.0765571044956974
+*****************************************************************************************
+men_test
+Processed 1001 test examples
+Spearman: 0.07782997259224682
+Pearson: 0.049892723688365434
+*****************************************************************************************
+radinskymturk
+Spearman: 0.18572843236925096
+Pearson: 0.11739412347517877
+*****************************************************************************************
+semeval17task2_test
+Spearman: 0.03685502289751964
+Pearson: 0.007714059389033734
+*****************************************************************************************
+semeval17task2_trial
+Spearman: 0.1764705882352941
+Pearson: 0.10326485274918733
+*****************************************************************************************
+simlex999
+Spearman: -0.10102700120401141
+Pearson: -0.0987481720685806
+*****************************************************************************************
+simverb3500
+Processed 1001 test examples
+Processed 2001 test examples
+Processed 3001 test examples
+Spearman: -0.034828549251866035
+Pearson: -0.012496104094595884
+*****************************************************************************************
+wordsim353_relatedness
+Spearman: 0.012434044234408866
+Pearson: 0.04298213602592356
+*****************************************************************************************
+wordsim353_similarity
+Spearman: 0.060344030069464615
+Pearson: -0.03394390188488847
+*****************************************************************************************
+yangpowersverb130
+Spearman: 0.07389539045414942
+Pearson: 0.11581911168733874
+*****************************************************************************************
+rarewords
+Processed 1001 test examples
+Processed 2001 test examples
+Spearman: -0.1430257327082968
+Pearson: -0.13224894289768188
+*****************************************************************************************
+hyperlex
+Processed 1001 test examples
+Processed 2001 test examples
+Spearman: 0.016463781607510372
+Pearson: 0.022174107411607656
+*****************************************************************************************
+hyperlex-nouns
+Processed 1001 test examples
+Processed 2001 test examples
+Spearman: 0.025470701653640397
+Pearson: 0.02969149344657493
+*****************************************************************************************
+hyperlex_test
+Spearman: -0.0173396299664028
+Pearson: -0.01392844946033892
+<torchtext.vocab.Vocab object at 0x2b565f8a0748>
+*****************************************************************************************
+semantics_analogytest
+-----------------------------------------------------------------------------------------
+Processed 1 test examples
+Processed 1001 test examples
+Processed 2001 test examples
+Processed 3001 test examples
+Processed 4001 test examples
+Processed 5001 test examples
+Processed 6001 test examples
+Processed 7001 test examples
+Processed 8001 test examples
+0
+2704
+0.0
+*****************************************************************************************
+syntactic_analogytest
+-----------------------------------------------------------------------------------------
+Processed 1 test examples
+Processed 1001 test examples
+Processed 2001 test examples
+Processed 3001 test examples
+Processed 4001 test examples
+Processed 5001 test examples
+Processed 6001 test examples
+Processed 7001 test examples
+Processed 8001 test examples
+Processed 9001 test examples
+Processed 10001 test examples
+1
+7506
+0.0001332267519317879
+/home/aishikc/projects/def-jcheung/aishikc/LM_with_Wordnet

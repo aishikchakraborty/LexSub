@@ -190,6 +190,9 @@ def dist_fn(x1, x2):
 
 annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)
 train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
+train_iter = [x for x in train_iter]
+valid_iter = [x for x in valid_iter]
+test_iter = [x for x in test_iter]
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
@@ -254,6 +257,21 @@ elif args.model == 'cbow':
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn).to(device)
+
+    model = model.WNLM(lm_model, wn_model).to(device)
+elif args.model == 'skipgram':
+    wn_offset = args.emsize if args.extend_wn else 0
+    em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
+
+    lm_model = model.SkipGramModel(ntokens, em_dim, idx2freq, cutoffs=cutoffs, adaptive=args.adaptive,
+                              proj_lm=args.extend_wn, lm_dim=args.emsize,
+                              fixed=args.fixed_wn, random=args.random_wn, nce=args.nce, nce_loss=args.nce_loss).to(device)
+    wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
+                             wn_offset=wn_offset,
+                             antonym_margin=args.margin,
+                             fixed=args.fixed_wn,
+                             random=args.random_wn).to(device)
+
     model = model.WNLM(lm_model, wn_model).to(device)
 else:
     raise ValueError('Illegal model type: %s. Options are [rnn, cbow, retro]' % args.model)
@@ -289,8 +307,6 @@ def evaluate(data_source):
     start_time = time.time()
     with torch.no_grad():
         for i, batch in enumerate(data_source):
-
-
             data, targets = batch.text, batch.target
             synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
             synonyms = synonyms.view(-1, 2)

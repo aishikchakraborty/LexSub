@@ -1,0 +1,1 @@
+2019_03_08_15_41 - sh - 12412446 - gra986 - output/wikitext-2_cbow_vanilla_lower/2019_03_08_15_41

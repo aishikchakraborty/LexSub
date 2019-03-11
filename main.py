@@ -175,8 +175,7 @@ class Dataset(data.TabularDataset):
         else:
             vec = torchtext.vocab.Vectors('glove.6B.300d.txt', cache='data/glove')
             TEXT_FIELD.build_vocab(train, vectors=vec)
-        else:
-            TEXT_FIELD.build_vocab(train)
+        
         WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
 
         train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),

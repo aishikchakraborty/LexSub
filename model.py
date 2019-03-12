@@ -408,16 +408,17 @@ class SkipGramModel(nn.Module):
         emb_input = self.encoder(input).view(batch_size, emb_dim, -1)
         nwords = torch.multinomial(self.weights, batch_size * context_size * n_negs, replacement=True).view(batch_size, -1).cuda()
         emb_output = self.decoder(targets).view(batch_size, context_size, -1)
-        emb_nwords = self.decoder(nwords).view(batch_size, context_size*n_negs, -1)
+        emb_nwords = self.decoder(nwords).view(batch_size, context_size*n_negs, -1).neg()
         # print(emb_input.shape)
         # print(emb_output.shape)
         # print(emb_nwords.shape)
-        oloss = torch.bmm(emb_output, emb_input).squeeze().sigmoid().log().mean(1)
+        oloss = torch.bmm(emb_output, emb_input).squeeze().sigmoid().log().mean(1) #bsz, context_size
         nloss = torch.bmm(emb_nwords, emb_input).squeeze().sigmoid().log().view(-1, context_size, n_negs).sum(2).mean(1)
 
         output_dict['log_probs'] = emb_output
         output_dict['hidden_vec'] = emb_output
         output_dict['loss_lm'] = -(oloss + nloss).mean()
+        output_dict['loss_ppl'] = -(oloss).mean()
 
         return output_dict
 

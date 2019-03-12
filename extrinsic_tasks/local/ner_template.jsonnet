@@ -31,6 +31,7 @@
             "pretrained_file": "${emb_filetxt}",
             "trainable": false
         },
+      },
     },
     "encoder": {
         "type": "lstm",

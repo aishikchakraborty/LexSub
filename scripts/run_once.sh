@@ -10,18 +10,18 @@ if [ "${data}" == "wikitext2" ]; then
     export bptt="${bptt:=35}"
     export data="wikitext-2"
     export nhid="${nhid:=300}"
-    time="${time:=6:00:00}"
+    time="${time:=2:00:00}"
     export mem="${mem:=30000}"
 fi
 
 if [ "${data}" == "wikitext103" ]; then
-    export epoch="${epoch:=5}"
+    export epoch="${epoch:=9}"
     export bptt="${bptt:=50}"
     export data="wikitext-103"
     export nhid="${nhid:=1200}"
     #export adaptive=true
     export nce=true
-    export time="${time:=1-03:00:00}"
+    export time="${time:=1-10:00:00}"
     export mem="${mem:=90000}"
 fi
 
@@ -32,7 +32,7 @@ if [ "${mdl}" == "retro" ]; then
     export bsize=${bsize:=512}
     export lr=${lr:=2}
     export optim="${optim:=adagrad}"
-    export time="${time:=6:00:00}"
+    export time="${time:=2:00:00}"
     export mem="${mem:=30000}"
 fi
 

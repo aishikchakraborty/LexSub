@@ -4,9 +4,12 @@ import torch.nn.functional as F
 from scipy.stats import spearmanr
 import argparse
 import csv
+import json
 from scipy.stats import spearmanr
 from scipy.stats import pearsonr
 import _pickle as pickle
+
+import hypernymysuite_eval
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--emb', type=str, default='../emb_Vanilla.pkl',
@@ -16,8 +19,8 @@ parser.add_argument('--vocab', type=str, default='../vocab_wikitext-103.pkl',
                     help='location of the vocab')
 parser.add_argument('--analogy-task', action='store_true',
                     help='get Google Analogy Task Results')
-parser.add_argument('--sim-task', action='store_true',
-                    help='use similarity task')
+parser.add_argument('--sim-task', action='store_true', help='use similarity task')
+parser.add_argument('--hypernymy', action='store_true', help='Run HypernymySuite experiments.')
 parser.add_argument('--text', action='store_true', help='read embedding files in text format')
 parser.add_argument('--prefix', type=str, default='', help='Prefix to add to word similarity task names.')
 
@@ -203,3 +206,80 @@ elif args.sim_task:
     else:
         ae.load_vocab()
     ae.load_similarity()
+
+elif args.hypernymy:
+    class HypernymySuiteModel(object):
+        """
+        Base class for all hypernymy suite models.
+
+        To use this, must implement these methods:
+
+            predict(self, hypo: str, hyper: str): float, which makes a
+                prediction about two words.
+            vocab: dict[str, int], which tells if a word is in the
+                vocabulary.
+
+        Your predict method *must* be prepared to handle OOV terms, but it may
+        returning any sentinel value you wish.
+
+        You can optionally implement
+            predict_many(hypo: list[str], hyper: list[str]: array[float]
+
+        The skeleton method here will just call predict() in a for loop, but
+        some methods can be vectorized for improved performance. This is the
+        actual method called by the evaluation script.
+        """
+
+        vocab = {}
+
+        def __init__(self):
+            self.vocab = pickle.load(open(args.vocab, 'rb')).stoi
+
+            self.emb1 = pickle.load(open(args.emb, 'rb'))
+            if args.emb2:
+                self.emb2 = pickle.load(open(args.emb2, 'rb'))
+            else:
+                self.emb2 = pickle.load(open(args.emb, 'rb'))
+
+        def predict(self, hypo, hyper):
+            """
+            Core modeling procedure, estimating the degree to which hypo is_a hyper.
+
+            This is an abstract method, describing the interface.
+
+            Args:
+                hypo: str. A hypothesized hyponym.
+                hyper: str. A hypothesized hypernym.
+
+            Returns:
+                float. The score estimating the degree to which hypo is_a hyper.
+                    Higher values indicate a stronger degree.
+            """
+            w1_ = self.vocab[hypo]
+            w1 = self.emb1[w1_]
+
+            w2_ = self.vocab[hyper]
+            w2 = self.emb2[w2_]
+
+            return F.cosine_similarity(w1.view(1, -1), w2.view(1, -1)).item()
+
+
+        def predict_many(self, hypos, hypers):
+            """
+            Make predictions for many pairs at the same time. The default
+            implementation just calls predict() many times, but many models
+            benefit from vectorization.
+
+            Args:
+                hypos: list[str]. A list of hypothesized hyponyms.
+                hypers: list[str]. A list of corresponding hypothesized hypernyms.
+            """
+            result = []
+            for x, y in zip(hypos, hypers):
+                result.append(self.predict(x, y))
+            return np.array(result, dtype=np.float32)
+
+
+    model = HypernymySuiteModel()
+    result = hypernymysuite_eval.all_evaluations(model, args)
+    print(json.dumps(result))

@@ -43,7 +43,7 @@ with open('lm_wn_machine_assignments%s.txt' % ('-v2' if version=='v2' else ''), 
                     if "test ppl" in line:
                         m = re.search('test ppl[ ]+([0-9.]+)', line)
                         if m is not None:
-                            output['test ppl'] = '%.4f' % float(m.group(1))
+                            output['test_ppl'] = '%.4f' % float(m.group(1))
 
                     if line in set(['men3k', 'simlex999', 'simverb3500', 'wordsim353_relatedness', 'hyperlex', 'hyperlex-nouns', 'hyperlex_test', \
                                     'syn_men3k', 'syn_simlex999', 'syn_simverb3500', 'syn_wordsim353_relatedness', 'syn_hyperlex', 'syn_hyperlex-nouns', 'syn_hyperlex_test', \
@@ -70,7 +70,7 @@ with open('lm_wn_machine_assignments%s.txt' % ('-v2' if version=='v2' else ''), 
         except Exception as e:
             print(e)
     json.dump(outputs, output_json, indent=2, separators=(',', ': '))
-    fields = ['id', 'date', 'job_name', 'path', 'emb_file', \
+    fields = ['id', 'date', 'job_name', 'path', 'emb_file', 'test_ppl',\
                 'men3k', 'wordsim353_relatedness', 'simlex999', 'simverb3500',  'hyperlex', 'hyperlex-nouns', 'hyperlex_test',  \
                 'syn_men3k', 'syn_simlex999', 'syn_simverb3500', 'syn_wordsim353_relatedness', 'syn_hyperlex', 'syn_hyperlex-nouns', 'syn_hyperlex_test', \
                 'hyp_men3k', 'hyp_simlex999', 'hyp_simverb3500', 'hyp_wordsim353_relatedness', 'hyp_hyperlex', 'hyp_hyperlex-nouns', 'hyp_hyperlex_test', \

@@ -11,7 +11,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.onnx
 import _pickle as pickle
-from tensorboardX import SummaryWriter
 
 import model
 
@@ -22,7 +21,6 @@ from torchtext import data, datasets
 import torchtext
 import csv
 csv.field_size_limit(100000000)
-
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='wikitext-2',
@@ -191,12 +189,6 @@ def dist_fn(x1, x2):
         return F.pairwise_distance(x1, x2)
 
 annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)
-summary_filename = 'logs/logs_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)
-
-os.system('rm -rf ' + summary_filename)
-os.mkdir(summary_filename)
-writer = SummaryWriter(summary_filename)
-
 train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
 train_iter = [x for x in train_iter]
 valid_iter = [x for x in valid_iter]
@@ -291,7 +283,7 @@ criterion = nn.NLLLoss()
 optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
 milestones=[100] if args.optim != 'sgd' else \
             ([3,6,7] if args.data == 'wikitext-103' else \
-                [5, 10, 15, 25]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
+                [10, 25, 35, 45]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
 print(milestones)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
 
@@ -336,8 +328,7 @@ def evaluate(data_source):
                     loss = output_dict['loss_lm']
                 else:
                     loss = criterion(output.view(-1, ntokens), targets.view(-1))
-            # if args.model == 'skipgram':
-            #     loss = output_dict['loss_ppl']
+
             total_loss += loss
             if 'syn' in args.lex_rels:
                 emb_syn1, emb_syn2 = output_dict['syn_emb']
@@ -383,7 +374,7 @@ def evaluate(data_source):
             total_loss_hyp/ (len(data_source) - 1), total_loss_mern/(len(data_source) - 1)
 
 
-def train(epoch):
+def train():
     # Turn on training mode which enables dropout.
     model.train()
     total_loss_ = 0.
@@ -424,7 +415,6 @@ def train(epoch):
                 loss = criterion(output.view(-1, ntokens), targets.view(-1))
 
         total_loss = loss
-
 
         if 'syn' in args.lex_rels:
             emb_syn1, emb_syn2 = output_dict['syn_emb']
@@ -477,8 +467,7 @@ def train(epoch):
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
-        # if args.model == 'skipgram':
-        #     loss = output_dict['loss_ppl']
+
         total_loss_ += loss.item()
 
         if idx % args.log_interval == 0 and idx > 0:
@@ -493,15 +482,6 @@ def train(epoch):
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | loss {:5.2f} | ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f} | reg_loss {:5.2f}'
                     .format(epoch, idx, len(train_iter), optimizer.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
                         cur_loss, math.exp(min(cur_loss, 10)), curr_syn_loss, curr_ant_loss, curr_hyp_loss, curr_mern_loss, curr_reg_loss))
-            global_step = epoch*args.batch_size + idx
-            writer.add_scalar('Train/LMLoss', cur_loss, global_step)
-            writer.add_scalar('Train/SynLoss', curr_syn_loss, global_step)
-            writer.add_scalar('Train/SynLoss', curr_ant_loss, global_step)
-            writer.add_scalar('Train/HypLoss', curr_hyp_loss, global_step)
-            writer.add_scalar('Train/MernLoss', curr_mern_loss, global_step)
-
-            writer.add_scalar('Train/lr', optimizer.param_groups[0]['lr'], global_step)
-
             start_time = time.time()
             total_loss_ = 0
             total_loss_syn = 0
@@ -526,7 +506,7 @@ print('Vocab Saved')
 try:
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
-        train(epoch)
+        train()
 
         if args.model != 'retro':
             val_loss, loss_syn, loss_ant, loss_hyp, loss_mer = evaluate(valid_iter)

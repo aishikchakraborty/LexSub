@@ -24,3 +24,10 @@
 12487014 - gra985 - output/wikitext-2_skipgram_vanilla_lower/2019_03_11_12_26
 12487014 - gra985 - output/wikitext-2_skipgram_vanilla_lower/2019_03_11_12_26
 12487014 - gra985 - output/wikitext-2_skipgram_vanilla_lower/2019_03_11_12_28
+12557627 - gra854 - output/wikitext-2_skipgram_syn_lower/2019_03_13_15_50
+12557628 - gra863 - output/wikitext-2_skipgram_hyp_lower/2019_03_13_15_50
+12557629 - gra933 - output/wikitext-2_skipgram_mer_lower/2019_03_13_15_50
+12557631 - gra936 - output/wikitext-2_skipgram_syn_mer_lower/2019_03_13_15_50
+12557630 - gra935 - output/wikitext-2_skipgram_syn_hyp_lower/2019_03_13_15_50
+12557632 - gra944 - output/wikitext-2_skipgram_hyp_mer_lower/2019_03_13_15_50
+12557633 - gra836 - output/wikitext-2_skipgram_syn_hyp_mer_lower/2019_03_13_15_50

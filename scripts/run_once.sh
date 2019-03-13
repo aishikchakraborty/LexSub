@@ -10,7 +10,7 @@ if [ "${data}" == "wikitext2" ]; then
     export bptt="${bptt:=35}"
     export data="wikitext-2"
     export nhid="${nhid:=300}"
-    time="${time:=2:00:00}"
+    time="${time:=12:00:00}"
     export mem="${mem:=30000}"
 fi
 

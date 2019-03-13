@@ -197,20 +197,32 @@ def get_lexical_relations_seq(text):
     shuffle(meronyms)
     shuffle(holonyms)
 
-    synonym_str = ' '.join([','.join(syn) for syn in synonyms[:args.max_pair]])
-    antonym_str = ' '.join([','.join(ant) for ant in antonyms[:args.max_pair]])
-    hypernym_str = ' '.join([','.join(hyp) for hyp in hypernyms[:args.max_pair]])
-    hyponym_str = ' '.join([','.join(hyp) for hyp in hyponyms[:args.max_pair]])
-    meronym_str = ' '.join([','.join(mer) for mer in meronyms[:args.max_pair]])
-    holonym_str = ' '.join([','.join(mer) for mer in holonyms[:args.max_pair]])
+    synonym_a = ' '.join([(syn[0]) for syn in synonyms[:args.max_pair]])
+    synonym_b = ' '.join([(syn[1]) for syn in synonyms[:args.max_pair]])
+    antonym_a = ' '.join([ant[0] for ant in antonyms[:args.max_pair]])
+    antonym_b = ' '.join([ant[1] for ant in antonyms[:args.max_pair]])
+    hypernym_a = ' '.join([(hyp[0]) for hyp in hypernyms[:args.max_pair]])
+    hypernym_b = ' '.join([(hyp[1]) for hyp in hypernyms[:args.max_pair]])
+    hyponym_a = ' '.join([(hyp[0]) for hyp in hyponyms[:args.max_pair]])
+    hyponym_b = ' '.join([(hyp[1]) for hyp in hyponyms[:args.max_pair]])
+    meronym_a = ' '.join([(mer[0]) for mer in meronyms[:args.max_pair]])
+    meronym_b = ' '.join([(mer[1]) for mer in meronyms[:args.max_pair]])
+    holonym_a = ' '.join([(mer[0]) for mer in holonyms[:args.max_pair]])
+    holonym_b = ' '.join([(mer[1]) for mer in holonyms[:args.max_pair]])
 
     return {
-                'synonyms': synonym_str,
-                'antonyms': antonym_str,
-                'hypernyms': hypernym_str,
-                'hyponyms': hyponym_str,
-                'meronyms': meronym_str,
-                'holonyms': holonym_str
+                'synonyms_a': synonym_a,
+                'synonyms_b': synonym_b,
+                'antonyms_a': antonym_a,
+                'antonyms_b': antonym_b,
+                'hypernyms_a': hypernym_a,
+                'hypernyms_b': hypernym_b,
+                'hyponyms_a': hyponym_a,
+                'hyponyms_a': hyponym_b,
+                'meronyms_a': meronym_a,
+                'meronyms_b': meronym_b,
+                'holonyms_a': holonym_a,
+                'holonyms_b': holonym_b
            }
 
 

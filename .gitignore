@@ -10,4 +10,6 @@ log/*
 logs/*
 models/*
 embeddings/*
+extrinsic_tasks/datasets/*
+wikitext-2/*
 *.*~

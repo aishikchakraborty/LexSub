@@ -137,14 +137,22 @@ class Dataset(data.TabularDataset):
             return [x.split(',') for x in prop_list]
 
         TEXT_FIELD = data.Field(batch_first=False, include_lengths=False, lower=args.lower)
-        WORDNET_TEXT_FIELD = data.Field(fix_length=2, lower=args.lower)
+        # WORDNET_TEXT_FIELD = data.Field(fix_length=2, lower=args.lower)
         field_dict = {
                 'text': ('text', TEXT_FIELD),
                 'target': ('target', TEXT_FIELD),
-                'synonyms': ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
-                'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
-                'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
-                'meronyms': ('meronyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
+                # 'synonyms': ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                # 'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                # 'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                # 'meronyms': ('meronyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
+                 'synonyms_a': ('synonyms_a', TEXT_FIELD),
+                 'synonyms_b': ('synonyms_b', TEXT_FIELD),
+                 'antonyms_a': ('antonyms_a', TEXT_FIELD),
+                 'antonyms_b': ('antonyms_b', TEXT_FIELD),
+                 'hypernyms_a': ('hypernyms_a', TEXT_FIELD),
+                 'hypernyms_b': ('hypernyms_b', TEXT_FIELD),
+                 'meronyms_a': ('meronyms_a', TEXT_FIELD),
+                 'meronyms_b': ('meronyms_b', TEXT_FIELD)
                 }
         suffix = hashlib.md5('{}-{}-{}-{}-{}-lower_{}'.format(version, dataset_dir,
                                                      train_file, valid_file, test_file, args.lower)
@@ -175,11 +183,16 @@ class Dataset(data.TabularDataset):
             TEXT_FIELD.build_vocab(train, vectors=vec)
         else:
             TEXT_FIELD.build_vocab(train)
-        WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
-
-        train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
-                                                batch_size=batch_size, device=device,
-                                                shuffle=bool(args.model != 'rnn'), repeat=False, sort=False)
+        # WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
+        if args.model == 'rnn':
+            train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
+                                                    batch_size=batch_size, device=device,
+                                                    shuffle=False, repeat=False, sort=False)
+        else:
+            print('Using Bucket Iterator')
+            train_iter, valid_iter, test_iter = data.BucketIterator.splits((train, valid, test),
+                                                    batch_size=batch_size, device=device,
+                                                    shuffle=False, repeat=False, sort=False)
 
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
 
@@ -198,16 +211,17 @@ os.mkdir(summary_filename)
 writer = SummaryWriter(summary_filename)
 
 train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
-train_iter = [x for x in train_iter]
-valid_iter = [x for x in valid_iter]
-test_iter = [x for x in test_iter]
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
 # train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
-                                                             # device=device, root=args.data)
+#                                                              device=device, root=args.data)
 # vocab = train_iter.dataset.fields['text'].vocab
+train_iter = [x for x in train_iter]
+valid_iter = [x for x in valid_iter]
+test_iter = [x for x in test_iter]
 
+print('Loaded batches')
 ntokens = len(vocab)
 pad_idx = vocab.stoi['<pad>']
 
@@ -316,7 +330,12 @@ def evaluate(data_source):
     with torch.no_grad():
         for i, batch in enumerate(data_source):
             data, targets = batch.text, batch.target
-            synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
+            synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
+            # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
+            synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
+            antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
+            hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=0)
+            meronyms = torch.stack((meronyms_a, meronyms_b), dim=0)
             synonyms = synonyms.view(-1, 2)
             antonyms = antonyms.view(-1, 2)
             hypernyms = hypernyms.view(-1, 2)
@@ -398,7 +417,13 @@ def train(epoch):
 
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target
-        synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
+        synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
+        # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
+        synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
+        antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
+        hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=0)
+        meronyms = torch.stack((meronyms_a, meronyms_b), dim=0)
+
         synonyms = synonyms.view(-1, 2)
         antonyms = antonyms.view(-1, 2)
         hypernyms = hypernyms.view(-1, 2)

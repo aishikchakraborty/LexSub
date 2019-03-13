@@ -6,11 +6,11 @@ set -ex
 export mdl=${mdl:="rnn"}
 
 if [ "${data}" == "wikitext2" ]; then
-    export epoch="${epoch:=70}"
+    export epoch="${epoch:=20}"
     export bptt="${bptt:=35}"
     export data="wikitext-2"
     export nhid="${nhid:=300}"
-    time="${time:=4:00:00}"
+    time="${time:=2:00:00}"
     export mem="${mem:=30000}"
 fi
 
@@ -75,5 +75,5 @@ export output_dir=${output_dir:=$dir}
 account="${account:=rrg-dprecup}"
 
 mkdir -p ${output_dir}
-# sbatch -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --mem ${mem} scripts/launcher_wn.sh
-./scripts/launcher_wn.sh
+sbatch -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --mem ${mem} scripts/launcher_wn.sh
+# ./scripts/launcher_wn.sh

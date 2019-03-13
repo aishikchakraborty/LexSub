@@ -247,36 +247,13 @@ class CBOWModel(nn.Module):
     def __init__(self, ntoken, ninp, vocab_freq, cutoffs=[1000, 10000], adaptive=False,
                 proj_lm=False, lm_dim=None, fixed=False, random=False, nce=False, nce_loss='nce'):
         super(CBOWModel, self).__init__()
+        subsample_threshold = 1e-5
         self.encoder = nn.Embedding(ntoken, ninp)
 
         if not proj_lm or lm_dim is None:
             lm_dim = ninp
 
 
-        if nce:
-            def build_unigram_noise(freq):
-                """build the unigram noise from a list of frequency
-                Parameters:
-                    freq: a tensor of #occurrences of the corresponding index
-                Return:
-                    unigram_noise: a torch.Tensor with size ntokens,
-                    elements indicate the probability distribution
-                """
-                total = freq.sum()
-                noise = freq / total
-                assert abs(noise.sum() - 1) < 0.001
-                return noise
-
-            self.criterion = IndexLinear(lm_dim, ntoken,
-                                noise=build_unigram_noise(vocab_freq),
-                                noise_ratio=int(ntoken/100),
-                                loss_type=nce_loss)
-        else:
-            if adaptive:
-                self.adaptive_softmax = nn.AdaptiveLogSoftmaxWithLoss(lm_dim, ntoken, cutoffs=cutoffs)
-            else:
-                self.decoder = nn.Linear(lm_dim, ntoken)
-            self.criterion = nn.NLLLoss()
 
         self.ntoken = ntoken
         self.proj_lm = proj_lm
@@ -314,6 +291,7 @@ class CBOWModel(nn.Module):
         emb = self.encoder(input)
         if self.proj_lm:
             emb = self.lm_proj(emb)
+        # print(emb.shape)
 
         output = torch.sum(emb, dim=0)
 
@@ -340,6 +318,111 @@ class CBOWModel(nn.Module):
     def init_hidden(self, bsz):
         pass
 
+
+class SkipGramModel(nn.Module):
+    """Container module with an encoder, a recurrent module, and a decoder."""
+
+    def __init__(self, ntoken, ninp, vocab_freq, cutoffs=[1000, 10000], adaptive=False,
+                proj_lm=False, lm_dim=None, fixed=False, random=False, nce=False, nce_loss='nce'):
+        super(SkipGramModel, self).__init__()
+        self.encoder = nn.Embedding(ntoken, ninp)
+        self.decoder = nn.Embedding(ntoken, ninp)
+
+        self.weights = vocab_freq / vocab_freq.sum()
+        self.weights = self.weights.pow(0.75)
+        self.weights = self.weights/self.weights.sum()
+
+
+        # if not proj_lm or lm_dim is None:
+        #     lm_dim = ninp
+        #
+        #
+        # if nce:
+        #     def build_unigram_noise(freq):
+        #         """build the unigram noise from a list of frequency
+        #         Parameters:
+        #             freq: a tensor of #occurrences of the corresponding index
+        #         Return:
+        #             unigram_noise: a torch.Tensor with size ntokens,
+        #             elements indicate the probability distribution
+        #         """
+        #         total = freq.sum()
+        #         noise = freq / total
+        #         assert abs(noise.sum() - 1) < 0.001
+        #         return noise
+        #
+        #     self.criterion = IndexLinear(lm_dim, ntoken,
+        #                         noise=build_unigram_noise(vocab_freq),
+        #                         noise_ratio=int(ntoken/100),
+        #                         loss_type=nce_loss)
+        # else:
+        #     if adaptive:
+        #         self.adaptive_softmax = nn.AdaptiveLogSoftmaxWithLoss(lm_dim, ntoken, cutoffs=cutoffs)
+        #     else:
+        #         self.decoder = nn.Linear(lm_dim, ntoken)
+        #     self.criterion = nn.NLLLoss()
+        self.ninp = ninp
+        self.ntoken = ntoken
+        self.proj_lm = proj_lm
+        self.fixed = fixed
+        self.random = random
+        self.lm_dim = lm_dim
+        self.adaptive = adaptive
+        self.nce = nce
+
+
+        if self.proj_lm:
+            self.lm_proj = nn.Linear(ninp, lm_dim, bias=False)
+
+            if fixed or random:
+                for param in self.lm_proj.parameters():
+                    param.requires_grad = False
+
+        self.init_weights()
+
+
+    def init_weights(self):
+        initrange = 0.1
+        self.encoder.weight.data.uniform_(-initrange, initrange)
+        # if not self.adaptive and not self.nce:
+        #     self.decoder.bias.data.zero_()
+        #     self.decoder.weight.data.uniform_(-initrange, initrange)
+
+        if self.proj_lm:
+            if self.fixed:
+                self.lm_proj.weight.data.zero_()
+                self.lm_proj.weight.data[:, 0:self.lm_dim] = torch.eye(self.lm_dim)
+
+
+    def forward(self, input, hidden, targets=None):
+        output_dict={}
+        n_negs = 20
+
+        batch_size = input.size(1)
+        emb_dim = self.ninp
+        if targets is not None:
+            context_size = targets.size(0)
+        else:
+            context_size = 8
+
+        emb_input = self.encoder(input).view(batch_size, emb_dim, -1)
+        nwords = torch.multinomial(self.weights, batch_size * context_size * n_negs, replacement=True).view(batch_size, -1).cuda()
+        emb_output = self.decoder(targets).view(batch_size, context_size, -1)
+        emb_nwords = self.decoder(nwords).view(batch_size, context_size*n_negs, -1)
+        # print(emb_input.shape)
+        # print(emb_output.shape)
+        # print(emb_nwords.shape)
+        oloss = torch.bmm(emb_output, emb_input).squeeze().sigmoid().log().mean(1)
+        nloss = torch.bmm(emb_nwords, emb_input).squeeze().sigmoid().log().view(-1, context_size, n_negs).sum(2).mean(1)
+
+        output_dict['log_probs'] = emb_output
+        output_dict['hidden_vec'] = emb_output
+        output_dict['loss_lm'] = -(oloss + nloss).mean()
+
+        return output_dict
+
+    def init_hidden(self, bsz):
+        pass
 
 class GloveEncoderModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""

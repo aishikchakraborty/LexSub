@@ -285,9 +285,25 @@ def create_cbow_corpus(in_path, out_path):
 
             text_str = ' '.join(text)
 
-            output = get_lexical_relations_seq(target)
+            output = get_lexical_relations_seq([target])
             output['text'] = text_str
             output['target'] = target
+
+            out_file.write(str(json.dumps(output)) + '\n')
+            out_file.flush()
+
+def create_skipgram_corpus(in_path, out_path):
+    tokens = get_tokens_from_file(in_path, add_eos=False)
+    context=4
+
+    with codecs.open(out_path, 'w', encoding="utf-8") as out_file:
+        for i in range(context, len(tokens)-context):
+            text = tokens[i]
+            output = get_lexical_relations_seq([text])
+
+            output['text'] = text
+            target = tokens[i-context:i] + tokens[i+1:i+context+1]
+            output['target'] = ' '.join(target)
 
             out_file.write(str(json.dumps(output)) + '\n')
             out_file.flush()
@@ -314,6 +330,9 @@ elif args.model == 'rnn':
     train, valid, test = ['train.txt', 'valid.txt', 'test.txt']
 elif args.model == 'cbow':
     create_corpus = create_cbow_corpus
+    train, valid, test = ['train.txt', 'valid.txt', 'test.txt']
+elif args.model == 'skipgram':
+    create_corpus = create_skipgram_corpus
     train, valid, test = ['train.txt', 'valid.txt', 'test.txt']
 
 print('Creating train files')

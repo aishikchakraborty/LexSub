@@ -1,17 +1,17 @@
 #!/bin/bash
 #SBATCH --account=rrg-dprecup
 #SBATCH --ntasks=1
-#SBATCH --mem=30000M
+#SBATCH --mem=50G
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=kushal.arora@mail.mcgill.ca
-#SBATCH --time=23:00:00
+#SBATCH --mail-user=chakraborty.aishik@gmail.com
+#SBATCH --time=12:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 ###########################
 
 set -ex
-echo $(date '+%Y_%m_%d_%H_%M') - $SLURM_JOB_NAME - $SLURM_JOBID - `hostname` - ${output_dir} >> ./lm_wn_machine_assignments-v2.txt
-source activate lm_wn
+echo $SLURM_JOBID - `hostname` - ${output_dir} >> ./lm_wn_machine_assignments.txt
+# source activate lm_wn
 
 export emb_size="${emb_size:=300}"
 export wnhid="${wnhid:=100}"
@@ -82,10 +82,6 @@ if [ -n "$adaptive" ]; then
     cmd+=" --adaptive"
 fi
 
-if [ -n "$nce" ]; then
-    cmd+=" --nce"
-fi
-
 if [ -n "$extend_wn" ]; then
     cmd+=" --extend_wn"
 fi
@@ -139,22 +135,17 @@ if [ -n "${nlayers}" ]; then
     cmd+=" --nlayers ${nlayers} "
 fi
 
-if [ ${wn_ratio} ]; then
-    cmd+=" --wn_ratio ${wn_ratio}"
-fi
+$cmd
 
-if [ -z "${step}" ]; then
-    step=1
-fi
+emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}
 
-step_till=${step_till:=100}
-echo ${step_till}
+cd analogy_tasks;
+python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
+python main.py  --analogy-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
 
-if [ -z "${emb_filename}" ]; then
-    emb_filename=emb_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}
-fi
-
+cd -;
 export emb_filetxt=${output_dir}/${emb_filename}.txt
+<<<<<<< HEAD
 
 declare -A task2time
 task2time["ner"]="3:00:00"

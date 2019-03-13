@@ -260,6 +260,21 @@ elif args.model == 'cbow':
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn).to(device)
+
+    model = model.WNLM(lm_model, wn_model).to(device)
+elif args.model == 'skipgram':
+    wn_offset = args.emsize if args.extend_wn else 0
+    em_dim = args.emsize + len(args.lex_rels) * args.wn_hid if args.extend_wn else args.emsize
+
+    lm_model = model.SkipGramModel(ntokens, em_dim, idx2freq, cutoffs=cutoffs, adaptive=args.adaptive,
+                              proj_lm=args.extend_wn, lm_dim=args.emsize,
+                              fixed=args.fixed_wn, random=args.random_wn, nce=args.nce, nce_loss=args.nce_loss).to(device)
+    wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
+                             wn_offset=wn_offset,
+                             antonym_margin=args.margin,
+                             fixed=args.fixed_wn,
+                             random=args.random_wn).to(device)
+
     model = model.WNLM(lm_model, wn_model).to(device)
 else:
     raise ValueError('Illegal model type: %s. Options are [rnn, cbow, retro]' % args.model)

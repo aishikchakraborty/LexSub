@@ -185,7 +185,7 @@ if [ ${step} -lt 2 ]; then
 fi
 
 i=3
-for ext_task in ner sst esim bidaf
+for ext_task in ner sst decomposable bidaf
 do
     if [ ${step} -lt ${i} ]; then
         run_extrinsic_task ${ext_task};

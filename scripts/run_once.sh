@@ -6,11 +6,11 @@ set -ex
 export mdl=${mdl:="rnn"}
 
 if [ "${data}" == "wikitext2" ]; then
-    export epoch="${epoch:=70}"
+    export epoch="${epoch:=10}"
     export bptt="${bptt:=35}"
     export data="wikitext-2"
     export nhid="${nhid:=300}"
-    time="${time:=2:00:00}"
+    time="${time:=4:00:00}"
     export mem="${mem:=30000}"
 fi
 

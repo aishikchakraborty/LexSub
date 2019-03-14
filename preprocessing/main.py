@@ -9,7 +9,9 @@ from nltk.corpus import wordnet
 from nltk.corpus import stopwords
 from random import shuffle
 import codecs
+import random
 import string
+from collections import Counter
 
 stopwords = nltk.corpus.stopwords.words('english')
 
@@ -197,20 +199,32 @@ def get_lexical_relations_seq(text):
     shuffle(meronyms)
     shuffle(holonyms)
 
-    synonym_str = ' '.join([','.join(syn) for syn in synonyms[:args.max_pair]])
-    antonym_str = ' '.join([','.join(ant) for ant in antonyms[:args.max_pair]])
-    hypernym_str = ' '.join([','.join(hyp) for hyp in hypernyms[:args.max_pair]])
-    hyponym_str = ' '.join([','.join(hyp) for hyp in hyponyms[:args.max_pair]])
-    meronym_str = ' '.join([','.join(mer) for mer in meronyms[:args.max_pair]])
-    holonym_str = ' '.join([','.join(mer) for mer in holonyms[:args.max_pair]])
+    synonym_a = ' '.join([(syn[0]) for syn in synonyms[:args.max_pair]])
+    synonym_b = ' '.join([(syn[1]) for syn in synonyms[:args.max_pair]])
+    antonym_a = ' '.join([ant[0] for ant in antonyms[:args.max_pair]])
+    antonym_b = ' '.join([ant[1] for ant in antonyms[:args.max_pair]])
+    hypernym_a = ' '.join([(hyp[0]) for hyp in hypernyms[:args.max_pair]])
+    hypernym_b = ' '.join([(hyp[1]) for hyp in hypernyms[:args.max_pair]])
+    hyponym_a = ' '.join([(hyp[0]) for hyp in hyponyms[:args.max_pair]])
+    hyponym_b = ' '.join([(hyp[1]) for hyp in hyponyms[:args.max_pair]])
+    meronym_a = ' '.join([(mer[0]) for mer in meronyms[:args.max_pair]])
+    meronym_b = ' '.join([(mer[1]) for mer in meronyms[:args.max_pair]])
+    holonym_a = ' '.join([(mer[0]) for mer in holonyms[:args.max_pair]])
+    holonym_b = ' '.join([(mer[1]) for mer in holonyms[:args.max_pair]])
 
     return {
-                'synonyms': synonym_str,
-                'antonyms': antonym_str,
-                'hypernyms': hypernym_str,
-                'hyponyms': hyponym_str,
-                'meronyms': meronym_str,
-                'holonyms': holonym_str
+                'synonyms_a': synonym_a,
+                'synonyms_b': synonym_b,
+                'antonyms_a': antonym_a,
+                'antonyms_b': antonym_b,
+                'hypernyms_a': hypernym_a,
+                'hypernyms_b': hypernym_b,
+                'hyponyms_a': hyponym_a,
+                'hyponyms_a': hyponym_b,
+                'meronyms_a': meronym_a,
+                'meronyms_b': meronym_b,
+                'holonyms_a': holonym_a,
+                'holonyms_b': holonym_b
            }
 
 
@@ -223,6 +237,17 @@ def get_tokens_from_file(in_path, add_eos=True):
                 words = words + ['<eos>']
             tokens.extend(words)
     return tokens
+
+def get_tokens_with_dict(in_path, add_eos=True):
+    with codecs.open(in_path, 'r', encoding="utf8") as f:
+        tokens = []
+        for line in f:
+            words = line.split()
+            if add_eos:
+                words = words + ['<eos>']
+            tokens.extend(words)
+
+    return tokens, Counter(tokens)
 
 
 def create_rnn_corpus(in_path, out_path):
@@ -293,20 +318,25 @@ def create_cbow_corpus(in_path, out_path):
             out_file.flush()
 
 def create_skipgram_corpus(in_path, out_path):
-    tokens = get_tokens_from_file(in_path, add_eos=False)
+    tokens, w2freq = get_tokens_with_dict(in_path, add_eos=False)
+    total = sum(w2freq.values(), 0.0)
+    w2freq = {key:w2freq[key]/total for key in w2freq.keys()}
+
     context=4
 
     with codecs.open(out_path, 'w', encoding="utf-8") as out_file:
         for i in range(context, len(tokens)-context):
             text = tokens[i]
-            output = get_lexical_relations_seq([text])
+            p = 1. - math.sqrt(1e-5/w2freq[text])
+            if random.random() > p:
+                output = get_lexical_relations_seq([text])
 
-            output['text'] = text
-            target = tokens[i-context:i] + tokens[i+1:i+context+1]
-            output['target'] = ' '.join(target)
+                output['text'] = text
+                target = tokens[i-context:i] + tokens[i+1:i+context+1]
+                output['target'] = ' '.join(target)
 
-            out_file.write(str(json.dumps(output)) + '\n')
-            out_file.flush()
+                out_file.write(str(json.dumps(output)) + '\n')
+                out_file.flush()
 
 if args.model == 'retro':
     create_vocab(os.path.join(args.data, 'vocab.txt'), add_eos=False)

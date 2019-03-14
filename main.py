@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.onnx
 import _pickle as pickle
+from tensorboardX import SummaryWriter
 
 import model
 
@@ -22,6 +23,7 @@ from torchtext import data, datasets
 import torchtext
 import csv
 csv.field_size_limit(100000000)
+
 
 parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='wikitext-2',
@@ -63,6 +65,8 @@ parser.add_argument('--random_seed', type=int, default=13370,
                     help='random seed')
 parser.add_argument('--numpy_seed', type=int, default=1337,
                     help='numpy random seed')
+parser.add_argument('--ss_t', type=float, default=1e-5,
+                    help="subsample threshold")
 parser.add_argument('--torch_seed', type=int, default=133,
                     help='pytorch random seed')
 parser.add_argument('--cuda', action='store_true',
@@ -136,14 +140,22 @@ class Dataset(data.TabularDataset):
             return [x.split(',') for x in prop_list]
 
         TEXT_FIELD = data.Field(batch_first=False, include_lengths=False, lower=args.lower)
-        WORDNET_TEXT_FIELD = data.Field(fix_length=2, lower=args.lower)
+        # WORDNET_TEXT_FIELD = data.Field(fix_length=2, lower=args.lower)
         field_dict = {
                 'text': ('text', TEXT_FIELD),
                 'target': ('target', TEXT_FIELD),
-                'synonyms': ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
-                'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
-                'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
-                'meronyms': ('meronyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
+                # 'synonyms': ('synonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                # 'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                # 'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
+                # 'meronyms': ('meronyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
+                 'synonyms_a': ('synonyms_a', TEXT_FIELD),
+                 'synonyms_b': ('synonyms_b', TEXT_FIELD),
+                 'antonyms_a': ('antonyms_a', TEXT_FIELD),
+                 'antonyms_b': ('antonyms_b', TEXT_FIELD),
+                 'hypernyms_a': ('hypernyms_a', TEXT_FIELD),
+                 'hypernyms_b': ('hypernyms_b', TEXT_FIELD),
+                 'meronyms_a': ('meronyms_a', TEXT_FIELD),
+                 'meronyms_b': ('meronyms_b', TEXT_FIELD)
                 }
         suffix = hashlib.md5('{}-{}-{}-{}-{}-lower_{}'.format(version, dataset_dir,
                                                      train_file, valid_file, test_file, args.lower)
@@ -174,35 +186,46 @@ class Dataset(data.TabularDataset):
             TEXT_FIELD.build_vocab(train, vectors=vec)
         else:
             TEXT_FIELD.build_vocab(train)
-        WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
-
-        train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
-                                                batch_size=batch_size, device=device,
-                                                shuffle=bool(args.model != 'rnn'), repeat=False, sort=False)
+        # WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
+        if args.model == 'rnn':
+            train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
+                                                    batch_size=batch_size, device=device,
+                                                    shuffle=False, repeat=False, sort=False)
+        else:
+            print('Using Bucket Iterator')
+            train_iter, valid_iter, test_iter = data.BucketIterator.splits((train, valid, test),
+                                                    batch_size=batch_size, device=device,
+                                                    shuffle=False, repeat=False, sort=False)
 
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
 
 
-def dist_fn(x1, x2):
+def dist_fn(x1, x2, dim=1):
     if args.distance == 'cosine':
-        return  1 - F.cosine_similarity(x1,x2)
+        return  1 - F.cosine_similarity(x1,x2, dim=dim)
     elif args.distance == 'pairwise':
         return F.pairwise_distance(x1, x2)
 
-annotated_data_dir = args.annotated_dir or \
-                        'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size) if args.model == 'rnn' else \
-                        'annotated_{}'.format(args.model)
+annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size) if args.model == 'rnn' else \
+                    'annotated_{}'.format(args.model)
+summary_filename = 'logs/logs_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)
+
+os.system('rm -rf ' + summary_filename)
+os.mkdir(summary_filename)
+writer = SummaryWriter(summary_filename)
 
 train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
-train_iter=[x for x in train_iter]
-valid_iter=[x for x in valid_iter]
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
 # train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
-                                                             # device=device, root=args.data)
+#                                                              device=device, root=args.data)
 # vocab = train_iter.dataset.fields['text'].vocab
+train_iter = [x for x in train_iter]
+valid_iter = [x for x in valid_iter]
+test_iter = [x for x in test_iter]
 
+print('Loaded batches')
 ntokens = len(vocab)
 pad_idx = vocab.stoi['<pad>']
 
@@ -232,7 +255,7 @@ if args.model == 'rnn':
                               args.dropout, cutoffs=cutoffs, tie_weights=args.tied, adaptive=args.adaptive,
                               proj_lm=args.extend_wn, lm_dim=args.emsize,
                               fixed=args.fixed_wn, random=args.random_wn, nce=args.nce, nce_loss=args.nce_loss).to(device)
-    wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
+    wn_model = model.WNModel(args.lex_rels, idx2freq, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
@@ -241,7 +264,7 @@ if args.model == 'rnn':
     model = model.WNLM(lm_model, wn_model).to(device)
 elif args.model == 'retro':
     gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained.to(device), dist_fn=dist_fn).to(device)
-    wn_model = model.WNModel(args.lex_rels, gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
+    wn_model = model.WNModel(args.lex_rels, idx2freq, gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
                              wn_offset=0,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
@@ -255,7 +278,7 @@ elif args.model == 'cbow':
     lm_model = model.CBOWModel(ntokens, em_dim, idx2freq, cutoffs=cutoffs, adaptive=args.adaptive,
                               proj_lm=args.extend_wn, lm_dim=args.emsize,
                               fixed=args.fixed_wn, random=args.random_wn, nce=args.nce, nce_loss=args.nce_loss).to(device)
-    wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
+    wn_model = model.WNModel(args.lex_rels, idx2freq, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
@@ -269,11 +292,11 @@ elif args.model == 'skipgram':
     lm_model = model.SkipGramModel(ntokens, em_dim, idx2freq, cutoffs=cutoffs, adaptive=args.adaptive,
                               proj_lm=args.extend_wn, lm_dim=args.emsize,
                               fixed=args.fixed_wn, random=args.random_wn, nce=args.nce, nce_loss=args.nce_loss).to(device)
-    wn_model = model.WNModel(args.lex_rels, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
+    wn_model = model.WNModel(args.lex_rels, idx2freq, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
-                             random=args.random_wn).to(device)
+                             random=args.random_wn, dist_fn=dist_fn).to(device)
 
     model = model.WNLM(lm_model, wn_model).to(device)
 else:
@@ -286,7 +309,7 @@ criterion = nn.NLLLoss()
 optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
 milestones=[100] if args.optim != 'sgd' else \
             ([3,6,7] if args.data == 'wikitext-103' else \
-                [10, 25, 35, 45]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
+                [5, 10, 15, 25]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
 print(milestones)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
 
@@ -310,10 +333,13 @@ def evaluate(data_source):
     start_time = time.time()
     with torch.no_grad():
         for i, batch in enumerate(data_source):
-
-
             data, targets = batch.text, batch.target
-            synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
+            synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
+            # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
+            synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
+            antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
+            hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=0)
+            meronyms = torch.stack((meronyms_a, meronyms_b), dim=0)
             synonyms = synonyms.view(-1, 2)
             antonyms = antonyms.view(-1, 2)
             hypernyms = hypernyms.view(-1, 2)
@@ -333,7 +359,8 @@ def evaluate(data_source):
                     loss = output_dict['loss_lm']
                 else:
                     loss = criterion(output.view(-1, ntokens), targets.view(-1))
-
+            # if args.model == 'skipgram':
+            #     loss = output_dict['loss_ppl']
             total_loss += loss
             if 'syn' in args.lex_rels:
                 emb_syn1, emb_syn2 = output_dict['syn_emb']
@@ -379,7 +406,7 @@ def evaluate(data_source):
             total_loss_hyp/ (len(data_source) - 1), total_loss_mern/(len(data_source) - 1)
 
 
-def train():
+def train(epoch):
     # Turn on training mode which enables dropout.
     model.train()
     total_loss_ = 0.
@@ -396,8 +423,15 @@ def train():
         shuffle(train_iter)
 
     for idx, batch in enumerate(train_iter):
+
         data, targets = batch.text, batch.target
-        synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
+        synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
+        # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
+        synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
+        antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
+        hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=0)
+        meronyms = torch.stack((meronyms_a, meronyms_b), dim=0)
+
         synonyms = synonyms.view(-1, 2)
         antonyms = antonyms.view(-1, 2)
         hypernyms = hypernyms.view(-1, 2)
@@ -423,6 +457,7 @@ def train():
                 loss = criterion(output.view(-1, ntokens), targets.view(-1))
 
         total_loss = loss
+
 
         if 'syn' in args.lex_rels:
             emb_syn1, emb_syn2 = output_dict['syn_emb']
@@ -475,7 +510,8 @@ def train():
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
-
+        # if args.model == 'skipgram':
+        #     loss = output_dict['loss_ppl']
         total_loss_ += loss.item()
 
         if idx % args.log_interval == 0 and idx > 0:
@@ -490,6 +526,15 @@ def train():
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.10f} | ms/batch {:5.2f} | loss {:5.2f} | ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f} | reg_loss {:5.2f}'
                     .format(epoch, idx, len(train_iter), optimizer.param_groups[0]['lr'], elapsed * 1000 / args.log_interval,
                         cur_loss, math.exp(min(cur_loss, 10)), curr_syn_loss, curr_ant_loss, curr_hyp_loss, curr_mern_loss, curr_reg_loss))
+            global_step = epoch*args.batch_size + idx
+            writer.add_scalar('Train/LMLoss', cur_loss, global_step)
+            writer.add_scalar('Train/SynLoss', curr_syn_loss, global_step)
+            writer.add_scalar('Train/SynLoss', curr_ant_loss, global_step)
+            writer.add_scalar('Train/HypLoss', curr_hyp_loss, global_step)
+            writer.add_scalar('Train/MernLoss', curr_mern_loss, global_step)
+
+            writer.add_scalar('Train/lr', optimizer.param_groups[0]['lr'], global_step)
+
             start_time = time.time()
             total_loss_ = 0
             total_loss_syn = 0
@@ -514,7 +559,7 @@ print('Vocab Saved')
 try:
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
-        train()
+        train(epoch)
 
         if args.model != 'retro':
             val_loss, loss_syn, loss_ant, loss_hyp, loss_mer = evaluate(valid_iter)

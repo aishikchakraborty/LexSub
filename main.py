@@ -215,16 +215,13 @@ os.system('rm -rf ' + summary_filename)
 os.mkdir(summary_filename)
 writer = SummaryWriter(summary_filename)
 
-train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device='cpu')
+train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
 # train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
 #                                                              device=device, root=args.data)
 # vocab = train_iter.dataset.fields['text'].vocab
-train_iter = [x for x in train_iter]
-valid_iter = [x for x in valid_iter]
-test_iter = [x for x in test_iter]
 
 print('Loaded batches')
 ntokens = len(vocab)
@@ -334,8 +331,8 @@ def evaluate(data_source):
     start_time = time.time()
     with torch.no_grad():
         for i, batch in enumerate(data_source):
-            data, targets = batch.text.to(device), batch.target.to(device)
-            synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a.to(device), batch.synonyms_b.to(device), batch.antonyms_a.to(device), batch.antonyms_b.to(device), batch.hypernyms_a.to(device), batch.hypernyms_b.to(device), batch.meronyms_a.to(device), batch.meronyms_b.to(device)
+            data, targets = batch.text, batch.target
+            synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
             # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
             synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
             antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
@@ -424,8 +421,8 @@ def train(epoch):
         shuffle(train_iter)
 
     for idx, batch in enumerate(train_iter):
-        data, targets = batch.text.to(device), batch.target.to(device)
-        synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a.to(device), batch.synonyms_b.to(device), batch.antonyms_a.to(device), batch.antonyms_b.to(device), batch.hypernyms_a.to(device), batch.hypernyms_b.to(device), batch.meronyms_a.to(device), batch.meronyms_b.to(device)
+        data, targets = batch.text, batch.target
+        synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
         # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
         synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
         antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)

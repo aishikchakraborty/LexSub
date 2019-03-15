@@ -543,7 +543,7 @@ class WNModel(nn.Module):
             nwords = torch.multinomial(self.weights, batch_size * self.n_negs, replacement=True).view(batch_size, -1).cuda()
             emb_hyp_neg = self.hypn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1)
 
-            output_dict['loss_hyp'] = torch.sum((self.dist_fn(emb_hypn1, emb_hypn2) + F.relu(0.75 - self.dist_fn(emb_hypn1.view(batch_size, 1, -1), emb_hyp_neg, dim=2)).mean(1) + F.relu(self.dist_fn(emb_hypn1.view(batch_size, 1, -1), emb_hyp_neg, dim=2) - 1.5).sum(1)) * hyp_mask)/max(hyp_len, 1)
+            output_dict['loss_hyp'] = torch.sum((self.dist_fn(emb_hypn1, emb_hypn2) + F.relu(0.5 - self.dist_fn(emb_hypn1.view(batch_size, 1, -1), emb_hyp_neg, dim=2)).mean(1) + F.relu(self.dist_fn(emb_hypn1.view(batch_size, 1, -1), emb_hyp_neg, dim=2) - 1.5).sum(1)) * hyp_mask)/max(hyp_len, 1)
             output_dict['hyp_emb'] = (emb_hypn1, emb_hypn2)
 
         if 'mer' in self.lex_rels and meronyms is not None:
@@ -556,7 +556,7 @@ class WNModel(nn.Module):
             nwords = torch.multinomial(self.weights, batch_size * self.n_negs, replacement=True).view(batch_size, -1).cuda()
             emb_mer_neg = self.hypn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1)
 
-            output_dict['loss_mer'] = torch.sum((self.dist_fn(emb_mern1, emb_mern2) + F.relu(0.75 - self.dist_fn(emb_mern1.view(batch_size, 1, -1), emb_mer_neg, dim=2)).mean(1) + F.relu(self.dist_fn(emb_mern1.view(batch_size, 1, -1), emb_mer_neg, dim=2) - 1.5).sum(1))* mer_mask)/max(mer_len, 1)
+            output_dict['loss_mer'] = torch.sum((self.dist_fn(emb_mern1, emb_mern2) + F.relu(0.5 - self.dist_fn(emb_mern1.view(batch_size, 1, -1), emb_mer_neg, dim=2)).mean(1) + F.relu(self.dist_fn(emb_mern1.view(batch_size, 1, -1), emb_mer_neg, dim=2) - 1.5).sum(1))* mer_mask)/max(mer_len, 1)
             output_dict['mer_emb'] = (emb_mern1, emb_mern2)
 
         return output_dict

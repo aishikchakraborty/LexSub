@@ -10,3 +10,4 @@ log/*
 models/*
 embeddings/*
 *.*~
+extrinsic_tasks/datasets/*

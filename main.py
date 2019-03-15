@@ -41,7 +41,7 @@ parser.add_argument('--nhid', type=int, default=300,
                     help='number of hidden units per layer')
 parser.add_argument('--wn_hid', type=int, default=100,
                     help='Dimension of the WN subspace')
-parser.add_argument('--margin', type=int, default=1,
+parser.add_argument('--margin', type=int, default=2,
                     help='define the margin for the max-margin loss')
 parser.add_argument('--patience', type=int, default=1,
                     help='How long before you reduce the LR.')
@@ -83,7 +83,7 @@ parser.add_argument('--onnx-export', type=str, default='',
                     help='path to export the final model in onnx format')
 parser.add_argument('--adaptive', action='store_true',
                     help='Use adaptive softmax. This speeds up computation.')
-parser.add_argument('--wn_ratio', type=float, default=0.1,
+parser.add_argument('--wn_ratio', type=float, default=1,
                     help='dropout applied to layers (0 = no dropout)')
 parser.add_argument('--distance', type=str, default='cosine',
                     help='Type of distance to use. Options are [pairwise, cosine]')
@@ -208,13 +208,14 @@ def dist_fn(x1, x2, dim=1):
 
 annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size) if args.model == 'rnn' else \
                     'annotated_{}'.format(args.model)
-summary_filename = 'logs/logs_{}_{}_{}'.format(args.model, args.bptt, args.batch_size)
+lex_rels = '_'.join(args.lex_rels) if len(args.lex_rels) > 0 else 'vanilla'
+summary_filename = 'logs/logs_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance
 
 os.system('rm -rf ' + summary_filename)
 os.mkdir(summary_filename)
 writer = SummaryWriter(summary_filename)
 
-train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
+train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device='cpu')
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
@@ -307,12 +308,12 @@ else:
 criterion = nn.NLLLoss()
 
 optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
-milestones=[100] if args.optim != 'sgd' else \
-            ([3,6,7] if args.data == 'wikitext-103' else \
-                [5, 10, 15, 25]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
-print(milestones)
-scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
-
+# milestones=[100] if args.optim != 'sgd' else \
+#             ([3,6,7] if args.data == 'wikitext-103' else \
+#                 [10, 15, 25, 35]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
+# print(milestones)
+# scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 15)
 
 print('Lex Rel List: {}'.format(args.lex_rels))
 def evaluate(data_source):
@@ -333,8 +334,8 @@ def evaluate(data_source):
     start_time = time.time()
     with torch.no_grad():
         for i, batch in enumerate(data_source):
-            data, targets = batch.text, batch.target
-            synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
+            data, targets = batch.text.to(device), batch.target.to(device)
+            synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a.to(device), batch.synonyms_b.to(device), batch.antonyms_a.to(device), batch.antonyms_b.to(device), batch.hypernyms_a.to(device), batch.hypernyms_b.to(device), batch.meronyms_a.to(device), batch.meronyms_b.to(device)
             # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
             synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
             antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
@@ -423,9 +424,8 @@ def train(epoch):
         shuffle(train_iter)
 
     for idx, batch in enumerate(train_iter):
-
-        data, targets = batch.text, batch.target
-        synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
+        data, targets = batch.text.to(device), batch.target.to(device)
+        synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a.to(device), batch.synonyms_b.to(device), batch.antonyms_a.to(device), batch.antonyms_b.to(device), batch.hypernyms_a.to(device), batch.hypernyms_b.to(device), batch.meronyms_a.to(device), batch.meronyms_b.to(device)
         # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
         synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
         antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
@@ -529,7 +529,7 @@ def train(epoch):
             global_step = epoch*args.batch_size + idx
             writer.add_scalar('Train/LMLoss', cur_loss, global_step)
             writer.add_scalar('Train/SynLoss', curr_syn_loss, global_step)
-            writer.add_scalar('Train/SynLoss', curr_ant_loss, global_step)
+            writer.add_scalar('Train/AntLoss', curr_ant_loss, global_step)
             writer.add_scalar('Train/HypLoss', curr_hyp_loss, global_step)
             writer.add_scalar('Train/MernLoss', curr_mern_loss, global_step)
 
@@ -545,7 +545,7 @@ def train(epoch):
     print()
 
 patience = 0
-lex_rels = '_'.join(args.lex_rels) if len(args.lex_rels) > 0 else 'vanilla'
+
 model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pt')
 emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
 emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.txt')

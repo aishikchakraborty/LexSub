@@ -461,7 +461,7 @@ class WNModel(nn.Module):
         self.weights = vocab_freq / vocab_freq.sum()
         self.weights = self.weights.pow(0.75)
         self.weights = self.weights/self.weights.sum()
-        self.n_negs = 5
+        self.n_negs = 20
 
         if 'syn' in lex_rels:
             self.syn_proj = nn.Linear(emb_dim, wn_dim, bias=False)
@@ -521,7 +521,8 @@ class WNModel(nn.Module):
             emb_syn_neg = self.syn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1)
             # print(emb_syn1.shape)
             # print(self.dist_fn(emb_syn1.unsqueeze(2), emb_syn_neg).sum(1).mean())
-            output_dict['loss_syn'] = torch.sum((self.dist_fn(emb_syn1, emb_syn2) + F.relu(1 - self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2).sum(1))) * syn_mask)/max(syn_len, 1)
+            output_dict['loss_syn'] = torch.sum((self.dist_fn(emb_syn1, emb_syn2) + F.relu(0.5 - self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2)).mean(1) + \
+                                            F.relu(self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2) - 1.5).mean(1)) * syn_mask)/max(syn_len, 1)
             output_dict['syn_emb'] = (emb_syn1, emb_syn2)
 
         if 'syn' in self.lex_rels and antonyms is not None:
@@ -542,7 +543,7 @@ class WNModel(nn.Module):
             nwords = torch.multinomial(self.weights, batch_size * self.n_negs, replacement=True).view(batch_size, -1).cuda()
             emb_hyp_neg = self.hypn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1)
 
-            output_dict['loss_hyp'] = torch.sum((self.dist_fn(emb_hypn1, emb_hypn2) + F.relu(1 - self.dist_fn(emb_hypn1.view(batch_size, 1, -1), emb_hyp_neg, dim=2).sum(1))) * hyp_mask)/max(hyp_len, 1)
+            output_dict['loss_hyp'] = torch.sum((self.dist_fn(emb_hypn1, emb_hypn2) + F.relu(0.75 - self.dist_fn(emb_hypn1.view(batch_size, 1, -1), emb_hyp_neg, dim=2)).mean(1) + F.relu(self.dist_fn(emb_hypn1.view(batch_size, 1, -1), emb_hyp_neg, dim=2) - 1.5).sum(1)) * hyp_mask)/max(hyp_len, 1)
             output_dict['hyp_emb'] = (emb_hypn1, emb_hypn2)
 
         if 'mer' in self.lex_rels and meronyms is not None:
@@ -555,7 +556,7 @@ class WNModel(nn.Module):
             nwords = torch.multinomial(self.weights, batch_size * self.n_negs, replacement=True).view(batch_size, -1).cuda()
             emb_mer_neg = self.hypn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1)
 
-            output_dict['loss_mer'] = torch.sum((self.dist_fn(emb_mern1, emb_mern2) + F.relu(1 - self.dist_fn(emb_mern1.view(batch_size, 1, -1), emb_mer_neg, dim=2).sum(1)))* mer_mask)/max(mer_len, 1)
+            output_dict['loss_mer'] = torch.sum((self.dist_fn(emb_mern1, emb_mern2) + F.relu(0.75 - self.dist_fn(emb_mern1.view(batch_size, 1, -1), emb_mer_neg, dim=2)).mean(1) + F.relu(self.dist_fn(emb_mern1.view(batch_size, 1, -1), emb_mer_neg, dim=2) - 1.5).sum(1))* mer_mask)/max(mer_len, 1)
             output_dict['mer_emb'] = (emb_mern1, emb_mern2)
 
         return output_dict

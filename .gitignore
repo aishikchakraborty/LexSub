@@ -11,3 +11,4 @@ models/*
 embeddings/*
 *.*~
 extrinsic_tasks/datasets/*
+lm_wn_*machine_assignments*

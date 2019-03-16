@@ -29,6 +29,7 @@ parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Langua
 parser.add_argument('--data', type=str, default='wikitext-2',
                     help='location of the data corpus')
 parser.add_argument('--annotated_dir', type=str, help='name of the directory with annontated data.')
+parser.add_argument('--data_version', type=str, help='Version of Wordnet data to use.')
 parser.add_argument('--model', type=str, default='rnn',
                     help='type of model. Options are [retro, rnn, cbow]')
 parser.add_argument('--rnn_type', type=str, default='LSTM',
@@ -208,6 +209,11 @@ def dist_fn(x1, x2, dim=1):
 
 annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size) if args.model == 'rnn' else \
                     'annotated_{}'.format(args.model)
+
+if args.data_version:
+    annotated_data_dir += '_v{}'.format(args.data_version)
+
+
 lex_rels = '_'.join(args.lex_rels) if len(args.lex_rels) > 0 else 'vanilla'
 summary_filename = 'logs/logs_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance
 
@@ -543,11 +549,11 @@ def train(epoch):
 
 patience = 0
 
-model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pt')
-emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
-emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.txt')
+model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.pt')
+emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.pkl')
+emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.txt')
 
-rel_emb_name_temp = os.path.join(args.save_emb, 'emb_%s_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
+rel_emb_name_temp = os.path.join(args.save_emb, 'emb_%s_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.pkl')
 
 vocab_name = os.path.join(args.save, 'vocab_' + args.data + '.pkl')
 pickle.dump(vocab, open(vocab_name, 'wb'))

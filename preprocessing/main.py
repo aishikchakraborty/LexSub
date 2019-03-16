@@ -11,6 +11,7 @@ from random import shuffle
 import codecs
 import random
 import string
+import glob
 from collections import Counter
 
 stopwords = nltk.corpus.stopwords.words('english')
@@ -30,7 +31,7 @@ parser.add_argument('--max-pair', type=int, default=100,
                     help='max no of pairs of wordnet relations')
 parser.add_argument('--lower', action='store_true',
                     help='Lowercase lemmas from wordnet.')
-parser.add_argument('--version', type=int,
+parser.add_argument('--version', type=int, default=1,
                     help='Version of the code to run.')
 
 args = parser.parse_args()
@@ -422,3 +423,5 @@ with open('mer.txt', 'w') as mer:
     for mer_pair in global_meronyms:
         mer.write('%s\t%s\n' % mer_pair)
 
+for pkl_file in glob.glob('/'.join([out_dir, '*.pkl'])):
+    os.rm(pkl_file)

@@ -137,11 +137,12 @@ class Dataset(data.TabularDataset):
 
         def preprocessing(prop_list):
             if len(prop_list) == 0:
-                return ['<pad>', '<pad>']
-            return [x.split(',') for x in prop_list]
+                return ['<pad>']
+            return prop_list
 
         TEXT_FIELD = data.Field(batch_first=False, include_lengths=False, lower=args.lower)
         # WORDNET_TEXT_FIELD = data.Field(fix_length=2, lower=args.lower)
+        WORDNET_TEXT_FIELD = data.Field(preprocessing=preprocessing, lower=args.lower)
         field_dict = {
                 'text': ('text', TEXT_FIELD),
                 'target': ('target', TEXT_FIELD),
@@ -149,14 +150,14 @@ class Dataset(data.TabularDataset):
                 # 'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
                 # 'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
                 # 'meronyms': ('meronyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
-                 'synonyms_a': ('synonyms_a', TEXT_FIELD),
-                 'synonyms_b': ('synonyms_b', TEXT_FIELD),
-                 'antonyms_a': ('antonyms_a', TEXT_FIELD),
-                 'antonyms_b': ('antonyms_b', TEXT_FIELD),
-                 'hypernyms_a': ('hypernyms_a', TEXT_FIELD),
-                 'hypernyms_b': ('hypernyms_b', TEXT_FIELD),
-                 'meronyms_a': ('meronyms_a', TEXT_FIELD),
-                 'meronyms_b': ('meronyms_b', TEXT_FIELD)
+                 'synonyms_a': ('synonyms_a', WORDNET_TEXT_FIELD),
+                 'synonyms_b': ('synonyms_b', WORDNET_TEXT_FIELD),
+                 'antonyms_a': ('antonyms_a', WORDNET_TEXT_FIELD),
+                 'antonyms_b': ('antonyms_b', WORDNET_TEXT_FIELD),
+                 'hypernyms_a': ('hypernyms_a', WORDNET_TEXT_FIELD),
+                 'hypernyms_b': ('hypernyms_b', WORDNET_TEXT_FIELD),
+                 'meronyms_a': ('meronyms_a', WORDNET_TEXT_FIELD),
+                 'meronyms_b': ('meronyms_b', WORDNET_TEXT_FIELD)
                 }
         suffix = hashlib.md5('{}-{}-{}-{}-{}-lower_{}'.format(version, dataset_dir,
                                                      train_file, valid_file, test_file, args.lower)
@@ -187,7 +188,7 @@ class Dataset(data.TabularDataset):
             TEXT_FIELD.build_vocab(train, vectors=vec)
         else:
             TEXT_FIELD.build_vocab(train)
-        # WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
+        WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
         if args.model == 'rnn':
             train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
                                                     batch_size=batch_size, device=device,
@@ -196,7 +197,7 @@ class Dataset(data.TabularDataset):
             print('Using Bucket Iterator')
             train_iter, valid_iter, test_iter = data.BucketIterator.splits((train, valid, test),
                                                     batch_size=batch_size, device=device,
-                                                    shuffle=False, repeat=False, sort=False)
+                                                    shuffle=(args.model=='rnn'), repeat=False, sort=False)
 
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
 
@@ -422,9 +423,6 @@ def train(epoch):
     start_time = time.time()
     if args.model != 'retro':
         hidden = model.init_hidden(args.batch_size)
-
-    if args.model != 'rnn':
-        shuffle(train_iter)
 
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target

@@ -21,8 +21,10 @@ parser.add_argument('--analogy-task', action='store_true',
                     help='get Google Analogy Task Results')
 parser.add_argument('--sim-task', action='store_true', help='use similarity task')
 parser.add_argument('--hypernymy', action='store_true', help='Run HypernymySuite experiments.')
+parser.add_argument('--neighbors', action='store_true', help='Dump neighbors')
 parser.add_argument('--text', action='store_true', help='read embedding files in text format')
 parser.add_argument('--prefix', type=str, default='', help='Prefix to add to word similarity task names.')
+parser.add_argument('--output_file', type=str, default=None, help='File to which to dump the outputs. Used specifically for dumping neighbours')
 
 args = parser.parse_args()
 
@@ -184,6 +186,105 @@ class AnalogyExperiment():
             print(total_examples)
             print(float(correct_pred)/float(total_examples))
 
+class RankedNeighbors():
+    def __init__(self, topk=10):
+        self.topk=topk
+        self.output_filename = args.output_file
+
+    def load_vocab(self):
+        self.vocab = pickle.load(open(args.vocab, 'rb'))
+
+        self.emb1 = pickle.load(open(args.emb, 'rb'))
+        if args.emb2:
+            self.emb2 = pickle.load(open(args.emb2, 'rb'))
+        else:
+            self.emb2 = pickle.load(open(args.emb, 'rb'))
+
+    def dump_neighbors(self):
+        with open(self.output_filename, 'w') as out_file:
+            for i, x in enumerate(open('unsup_datasets/words.txt')):
+                x = x.strip()
+                i = self.vocab.stoi[x]
+                wemb = self.emb1[i].view(1, -1)
+                neighbors = []
+                scores = F.cosine_similarity(wemb, self.emb2, dim=1)
+                scores[i] = -float("inf")
+
+                score_topk, topk = torch.topk(scores, k=self.topk)
+                for score, idx in zip(score_topk, topk):
+                    neighbors.append('%s(%0.3f)'% (self.vocab.itos[idx], score))
+                out_file.write('%s\t%s\n' % (self.vocab.itos[i], '\t'.join(neighbors)))
+
+class HypernymySuiteModel(object):
+    """
+    Base class for all hypernymy suite models.
+
+    To use this, must implement these methods:
+
+        predict(self, hypo: str, hyper: str): float, which makes a
+            prediction about two words.
+        vocab: dict[str, int], which tells if a word is in the
+            vocabulary.
+
+    Your predict method *must* be prepared to handle OOV terms, but it may
+    returning any sentinel value you wish.
+
+    You can optionally implement
+        predict_many(hypo: list[str], hyper: list[str]: array[float]
+
+    The skeleton method here will just call predict() in a for loop, but
+    some methods can be vectorized for improved performance. This is the
+    actual method called by the evaluation script.
+    """
+
+    vocab = {}
+
+    def __init__(self):
+        self.vocab = pickle.load(open(args.vocab, 'rb')).stoi
+
+        self.emb1 = pickle.load(open(args.emb, 'rb'))
+        if args.emb2:
+            self.emb2 = pickle.load(open(args.emb2, 'rb'))
+        else:
+            self.emb2 = pickle.load(open(args.emb, 'rb'))
+
+    def predict(self, hypo, hyper):
+        """
+        Core modeling procedure, estimating the degree to which hypo is_a hyper.
+
+        This is an abstract method, describing the interface.
+
+        Args:
+            hypo: str. A hypothesized hyponym.
+            hyper: str. A hypothesized hypernym.
+
+        Returns:
+            float. The score estimating the degree to which hypo is_a hyper.
+                Higher values indicate a stronger degree.
+        """
+        w1_ = self.vocab[hypo]
+        w1 = self.emb1[w1_]
+
+        w2_ = self.vocab[hyper]
+        w2 = self.emb2[w2_]
+
+        return F.cosine_similarity(w1.view(1, -1), w2.view(1, -1)).item()
+
+
+    def predict_many(self, hypos, hypers):
+        """
+        Make predictions for many pairs at the same time. The default
+        implementation just calls predict() many times, but many models
+        benefit from vectorization.
+
+        Args:
+            hypos: list[str]. A list of hypothesized hyponyms.
+            hypers: list[str]. A list of corresponding hypothesized hypernyms.
+        """
+        result = []
+        for x, y in zip(hypos, hypers):
+            result.append(self.predict(x, y))
+        return np.array(result, dtype=np.float32)
 
 if args.text:
     vocab, emb = read_text_file(args.emb)
@@ -208,78 +309,12 @@ elif args.sim_task:
     ae.load_similarity()
 
 elif args.hypernymy:
-    class HypernymySuiteModel(object):
-        """
-        Base class for all hypernymy suite models.
-
-        To use this, must implement these methods:
-
-            predict(self, hypo: str, hyper: str): float, which makes a
-                prediction about two words.
-            vocab: dict[str, int], which tells if a word is in the
-                vocabulary.
-
-        Your predict method *must* be prepared to handle OOV terms, but it may
-        returning any sentinel value you wish.
-
-        You can optionally implement
-            predict_many(hypo: list[str], hyper: list[str]: array[float]
-
-        The skeleton method here will just call predict() in a for loop, but
-        some methods can be vectorized for improved performance. This is the
-        actual method called by the evaluation script.
-        """
-
-        vocab = {}
-
-        def __init__(self):
-            self.vocab = pickle.load(open(args.vocab, 'rb')).stoi
-
-            self.emb1 = pickle.load(open(args.emb, 'rb'))
-            if args.emb2:
-                self.emb2 = pickle.load(open(args.emb2, 'rb'))
-            else:
-                self.emb2 = pickle.load(open(args.emb, 'rb'))
-
-        def predict(self, hypo, hyper):
-            """
-            Core modeling procedure, estimating the degree to which hypo is_a hyper.
-
-            This is an abstract method, describing the interface.
-
-            Args:
-                hypo: str. A hypothesized hyponym.
-                hyper: str. A hypothesized hypernym.
-
-            Returns:
-                float. The score estimating the degree to which hypo is_a hyper.
-                    Higher values indicate a stronger degree.
-            """
-            w1_ = self.vocab[hypo]
-            w1 = self.emb1[w1_]
-
-            w2_ = self.vocab[hyper]
-            w2 = self.emb2[w2_]
-
-            return F.cosine_similarity(w1.view(1, -1), w2.view(1, -1)).item()
-
-
-        def predict_many(self, hypos, hypers):
-            """
-            Make predictions for many pairs at the same time. The default
-            implementation just calls predict() many times, but many models
-            benefit from vectorization.
-
-            Args:
-                hypos: list[str]. A list of hypothesized hyponyms.
-                hypers: list[str]. A list of corresponding hypothesized hypernyms.
-            """
-            result = []
-            for x, y in zip(hypos, hypers):
-                result.append(self.predict(x, y))
-            return np.array(result, dtype=np.float32)
-
 
     model = HypernymySuiteModel()
     result = hypernymysuite_eval.all_evaluations(model, args)
     print(json.dumps(result))
+
+elif args.neighbors:
+    ae = RankedNeighbors()
+    ae.load_vocab()
+    ae.dump_neighbors()

@@ -197,7 +197,7 @@ class Dataset(data.TabularDataset):
             print('Using Bucket Iterator')
             train_iter, valid_iter, test_iter = data.BucketIterator.splits((train, valid, test),
                                                     batch_size=batch_size, device=device,
-                                                    shuffle=(args.model=='rnn'), repeat=False, sort=False)
+                                                    shuffle=bool(args.model != 'rnn'), repeat=False, sort=False)
 
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
 
@@ -312,12 +312,12 @@ else:
 criterion = nn.NLLLoss()
 
 optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
-# milestones=[100] if args.optim != 'sgd' else \
-#             ([3,6,7] if args.data == 'wikitext-103' else \
-#                 [10, 15, 25, 35]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
-# print(milestones)
-# scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 15)
+milestones=[100] if args.optim != 'sgd' else \
+            ([3,6,7] if args.data == 'wikitext-103' else \
+                [10, 15, 25, 35]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
+print(milestones)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 15)
 
 print('Lex Rel List: {}'.format(args.lex_rels))
 def evaluate(data_source):
@@ -339,16 +339,12 @@ def evaluate(data_source):
     with torch.no_grad():
         for i, batch in enumerate(data_source):
             data, targets = batch.text, batch.target
-            synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
             # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
-            synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
-            antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
-            hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=0)
-            meronyms = torch.stack((meronyms_a, meronyms_b), dim=0)
-            synonyms = synonyms.view(-1, 2)
-            antonyms = antonyms.view(-1, 2)
-            hypernyms = hypernyms.view(-1, 2)
-            meronyms = meronyms.view(-1, 2)
+            synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
+            synonyms = torch.stack((synonyms_a, synonyms_b), dim=2).view(-1, 2)
+            antonyms = torch.stack((antonyms_a, antonyms_b), dim=2).view(-1, 2)
+            hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=2).view(-1, 2)
+            meronyms = torch.stack((meronyms_a, meronyms_b), dim=2).view(-1, 2)
 
             if args.model == 'retro':
                 output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
@@ -426,17 +422,12 @@ def train(epoch):
 
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target
-        synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
         # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
-        synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
-        antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
-        hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=0)
-        meronyms = torch.stack((meronyms_a, meronyms_b), dim=0)
-
-        synonyms = synonyms.view(-1, 2)
-        antonyms = antonyms.view(-1, 2)
-        hypernyms = hypernyms.view(-1, 2)
-        meronyms = meronyms.view(-1, 2)
+        synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
+        synonyms = torch.stack((synonyms_a, synonyms_b), dim=2).view(-1, 2)
+        antonyms = torch.stack((antonyms_a, antonyms_b), dim=2).view(-1, 2)
+        hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=2).view(-1, 2)
+        meronyms = torch.stack((meronyms_a, meronyms_b), dim=2).view(-1, 2)
 
         optimizer.zero_grad()
         wn_ratio = args.wn_ratio

@@ -231,6 +231,13 @@ def get_lexical_relations_seq(text):
     shuffle(meronyms)
     shuffle(holonyms)
 
+    # synonym_str = ' '.join([','.join(syn) for syn in synonyms[:args.max_pair]])
+    # antonym_str = ' '.join([','.join(ant) for ant in antonyms[:args.max_pair]])
+    # hypernym_str = ' '.join([','.join(hyp) for hyp in hypernyms[:args.max_pair]])
+    # hyponym_str = ' '.join([','.join(hyp) for hyp in hyponyms[:args.max_pair]])
+    # meronym_str = ' '.join([','.join(mer) for mer in meronyms[:args.max_pair]])
+    # holonym_str = ' '.join([','.join(mer) for mer in holonyms[:args.max_pair]])
+
     synonym_a = ' '.join([(syn[0]) for syn in synonyms[:args.max_pair]])
     synonym_b = ' '.join([(syn[1]) for syn in synonyms[:args.max_pair]])
     antonym_a = ' '.join([ant[0] for ant in antonyms[:args.max_pair]])
@@ -245,6 +252,12 @@ def get_lexical_relations_seq(text):
     holonym_b = ' '.join([(mer[1]) for mer in holonyms[:args.max_pair]])
 
     return {
+                # 'synonyms': synonym_str,
+                # 'antonyms': antonym_str,
+                # 'hypernyms': hypernym_str,
+                # 'hyponyms': hyponym_str,
+                # 'meronyms': meronym_str,
+                # 'holonyms': holonym_str
                 'synonyms_a': synonym_a,
                 'synonyms_b': synonym_b,
                 'antonyms_a': antonym_a,
@@ -424,4 +437,4 @@ with open('mer.txt', 'w') as mer:
         mer.write('%s\t%s\n' % mer_pair)
 
 for pkl_file in glob.glob('/'.join([out_dir, '*.pkl'])):
-    os.rm(pkl_file)
+    os.remove(pkl_file)

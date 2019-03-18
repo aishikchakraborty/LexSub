@@ -209,7 +209,7 @@ done
 if [ ${step} -lt 7 ]; then
     cd analogy_tasks;
     python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
-    python main.py  --hypernymy --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl>../${output_dir}/hypernymysuite.json
+    python main.py  --hypernymy --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl | tee ../${output_dir}/hypernymysuite.json | jq
     step=`expr ${step} + 1`
     cd -;
 
@@ -230,7 +230,7 @@ if [ ${step} -lt 8 ]; then
             emb_syn_filename2+="_wn_v""${data_version}"
         fi
         python main.py --sim-task --emb ${emb_syn_filename1}.pkl --emb2 ${emb_syn_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --prefix syn
-        python main.py --hypernymy --emb ${emb_syn_filename1}.pkl --emb2 ${emb_syn_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl>../${output_dir}/syn_hypernymysuite.json
+        python main.py --hypernymy --emb ${emb_syn_filename1}.pkl --emb2 ${emb_syn_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl | tee ../${output_dir}/syn_hypernymysuite.json | jq
     fi
 
     if [ -n "${hyp}" ]; then
@@ -241,7 +241,7 @@ if [ ${step} -lt 8 ]; then
             emb_syn_filename2+="_wn_v""${data_version}"
         fi
         python main.py --sim-task --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --prefix hyp
-        python main.py --hypernymy --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl>../${output_dir}/hyp_hypernymysuite.json
+        python main.py --hypernymy --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl | tee ../${output_dir}/hyp_hypernymysuite.json | jq
     fi
 
     if [ -n "${mer}" ]; then
@@ -252,7 +252,7 @@ if [ ${step} -lt 8 ]; then
             emb_syn_filename2+="_wn_v""${data_version}"
         fi
         python main.py --sim-task --emb ${emb_mer_filename1}.pkl --emb2 ${emb_mer_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --prefix mer
-        python main.py --hypernymy --emb ${emb_mer_filename1}.pkl --emb2 ${emb_mer_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl>../${output_dir}/mer_hypernymysuite.json
+        python main.py --hypernymy --emb ${emb_mer_filename1}.pkl --emb2 ${emb_mer_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl | tee ../${output_dir}/mer_hypernymysuite.json | jq
     fi
     cd -;
     step=`expr ${step} + 1`

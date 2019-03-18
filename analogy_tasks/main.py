@@ -202,7 +202,17 @@ class RankedNeighbors():
 
     def dump_neighbors(self):
         with open(self.output_filename, 'w') as out_file:
-            for i, x in enumerate(open('unsup_datasets/words.txt')):
+            words=set([])
+            data_reader = csv.reader(open('unsup_datasets/simlex999.csv'), delimiter=',')
+            for i, row in enumerate(data_reader):
+                if i == 0:
+                    continue
+                w1, w2  = row[0], row[1]
+                words.add(w1)
+                words.add(w2)
+
+            words = sorted(list(words))
+            for i, x in enumerate(words):
                 x = x.strip()
                 i = self.vocab.stoi[x]
                 wemb = self.emb1[i].view(1, -1)

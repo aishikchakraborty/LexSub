@@ -29,8 +29,7 @@ if [ "${mdl}" == "retro" ]; then
     export epoch="${epoch:=40}"
     export bptt="${bptt:=1}"
     export data=${data:=glove}
-    export bsize=${bsize:=800}
-    export log_interval=${log_interval:=50}
+    export bsize=${bsize:=512}
     export lr=${lr:=2}
     export optim="${optim:=adagrad}"
     export time="${time:=3:00:00}"

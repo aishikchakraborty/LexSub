@@ -32,7 +32,7 @@ if [ "${mdl}" == "retro" ]; then
     export bsize=${bsize:=512}
     export lr=${lr:=2}
     export optim="${optim:=adagrad}"
-    export time="${time:=2:00:00}"
+    export time="${time:=3:00:00}"
     export mem="${mem:=30000}"
 fi
 

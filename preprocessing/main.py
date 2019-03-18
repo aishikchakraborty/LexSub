@@ -24,9 +24,11 @@ parser.add_argument('--bptt', type=int, default=1,
                     help='bptt length')
 parser.add_argument('--batch-size', type=int, default=20,
                     help='Batch size')
+parser.add_argument('--ss_t', type=float, default=1e-5,
+                    help='Subsampling Threshold')
 parser.add_argument('--model', type=str, default='rnn',
                     help='Model type being used to train the embedding. Options are: [rnn, CBOW, retro]')
-parser.add_argument('--max-pair', type=int, default=100,
+parser.add_argument('--max-pair', type=int, default=15,
                     help='max no of pairs of wordnet relations')
 parser.add_argument('--lower', action='store_true',
                     help='Lowercase lemmas from wordnet.')

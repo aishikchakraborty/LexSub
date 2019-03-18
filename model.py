@@ -554,7 +554,7 @@ class WNModel(nn.Module):
             mer_len = torch.sum(mer_mask)
             batch_size = meronyms.size(0)
             nwords = torch.multinomial(self.weights, batch_size * self.n_negs, replacement=True).view(batch_size, -1).cuda()
-            emb_mer_neg = self.hypn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1)
+            emb_mer_neg = self.mern_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1)
 
             output_dict['loss_mer'] = torch.sum((self.dist_fn(emb_mern1, emb_mern2) + F.relu(0.5 - self.dist_fn(emb_mern1.view(batch_size, 1, -1), emb_mer_neg, dim=2)).mean(1) + F.relu(self.dist_fn(emb_mern1.view(batch_size, 1, -1), emb_mer_neg, dim=2) - 1.5).sum(1))* mer_mask)/max(mer_len, 1)
             output_dict['mer_emb'] = (emb_mern1, emb_mern2)

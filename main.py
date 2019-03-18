@@ -222,9 +222,9 @@ train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir
 # train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
 #                                                              device=device, root=args.data)
 # vocab = train_iter.dataset.fields['text'].vocab
-train_iter = [x for x in train_iter]
-valid_iter = [x for x in valid_iter]
-test_iter = [x for x in test_iter]
+# train_iter = [x for x in train_iter]
+# valid_iter = [x for x in valid_iter]
+# test_iter = [x for x in test_iter]
 
 print('Loaded batches')
 ntokens = len(vocab)
@@ -313,7 +313,7 @@ optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'ada
 #                 [10, 15, 25, 35]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
 # print(milestones)
 # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 15)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 3)
 
 print('Lex Rel List: {}'.format(args.lex_rels))
 def evaluate(data_source):

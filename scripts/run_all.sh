@@ -1,5 +1,5 @@
 #!/bin/bash
-
+./scripts/run_once.sh
 syn=true ./scripts/run_once.sh
 hyp=true ./scripts/run_once.sh
 mer=true ./scripts/run_once.sh

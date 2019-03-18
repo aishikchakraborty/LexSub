@@ -82,8 +82,8 @@ def get_lexical_relations(word, word2idx):
 
     for syn in synsets:
         for lemma in syn.lemmas():
-            name = lemma.name()
 
+            name = lemma.name()
             if args.lower:
                 name = name.lower()
 
@@ -92,9 +92,6 @@ def get_lexical_relations(word, word2idx):
                 synonyms.add(tup)
 
             for ant in lemma.antonyms():
-                if args.version >= 2 and syn.pos() != ant.synset().pos():
-                    continue
-
                 name = ant.name()
                 if args.lower:
                     name = name.lower()
@@ -105,7 +102,7 @@ def get_lexical_relations(word, word2idx):
 
         hyp = syn.hypernyms() + syn.instance_hypernyms()
         for h in hyp:
-            if (args.version < 3 and syn.pos() == 'v') or (args.version >= 2 and syn.pos() != h.pos()):
+            if args.version < 2 and syn.pos() == 'v':
                 continue
 
             for lemma in h.lemmas():
@@ -122,7 +119,7 @@ def get_lexical_relations(word, word2idx):
 
         hyp = syn.hyponyms() + syn.instance_hyponyms()
         for h in hyp:
-            if (args.version < 3 and syn.pos() == 'v') or (args.version >= 2 and syn.pos() != h.pos()):
+            if args.version < 2 and syn.pos() == 'v':
                 continue
 
             for lemma in h.lemmas():
@@ -140,8 +137,6 @@ def get_lexical_relations(word, word2idx):
 
         mer = syn.member_meronyms() + syn.part_meronyms() + syn.substance_meronyms()
         for m in mer:
-            if args.version >= 2 and syn.pos() != m.pos():
-                continue
 
             for lemma in m.lemmas():
                 name = lemma.name()
@@ -157,8 +152,6 @@ def get_lexical_relations(word, word2idx):
 
         mer = syn.member_holonyms() + syn.part_holonyms() + syn.substance_holonyms()
         for m in mer:
-            if args.version >= 2 and syn.pos() != m.pos():
-                continue
 
             for lemma in m.lemmas():
                 name = lemma.name()
@@ -420,21 +413,22 @@ create_corpus(os.path.join(args.data, test), os.path.join(out_dir, 'test.txt'))
 print('Creating valid files')
 create_corpus(os.path.join(args.data, valid), os.path.join(out_dir, 'valid.txt'))
 
-with open('syn.txt', 'w') as syn:
-    for syn_pair in global_synonyms:
-        syn.write('%s\t%s\n' % syn_pair)
+if args.model == 'retro':
+    with open('syn_v{}.txt'.format(args.version), 'w') as syn:
+        for syn_pair in global_synonyms:
+            syn.write('%s\t%s\n' % syn_pair)
 
-with open('ant.txt', 'w') as ant:
-    for ant_pair in global_antonyms:
-       ant.write('%s\t%s\n' % ant_pair)
+    with open('ant_v{}.txt'.format(args.version), 'w') as ant:
+        for ant_pair in global_antonyms:
+           ant.write('%s\t%s\n' % ant_pair)
 
-with open('hyp.txt', 'w') as hyp:
-    for hyp_pair in global_hyponyms:
-        hyp.write('%s\t%s\n' % hyp_pair)
+    with open('hyp_v{}.txt'.format(args.version), 'w') as hyp:
+        for hyp_pair in global_hyponyms:
+            hyp.write('%s\t%s\n' % hyp_pair)
 
-with open('mer.txt', 'w') as mer:
-    for mer_pair in global_meronyms:
-        mer.write('%s\t%s\n' % mer_pair)
+    with open('mer_v{}.txt'.format(args.version), 'w') as mer:
+        for mer_pair in global_meronyms:
+            mer.write('%s\t%s\n' % mer_pair)
 
 for pkl_file in glob.glob('/'.join([out_dir, '*.pkl'])):
     os.remove(pkl_file)

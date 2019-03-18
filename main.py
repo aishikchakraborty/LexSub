@@ -29,6 +29,7 @@ parser = argparse.ArgumentParser(description='PyTorch Wikitext-2 RNN/LSTM Langua
 parser.add_argument('--data', type=str, default='wikitext-2',
                     help='location of the data corpus')
 parser.add_argument('--annotated_dir', type=str, help='name of the directory with annontated data.')
+parser.add_argument('--data_version', type=str, help='Version of Wordnet data to use.')
 parser.add_argument('--model', type=str, default='rnn',
                     help='type of model. Options are [retro, rnn, cbow]')
 parser.add_argument('--rnn_type', type=str, default='LSTM',
@@ -136,11 +137,12 @@ class Dataset(data.TabularDataset):
 
         def preprocessing(prop_list):
             if len(prop_list) == 0:
-                return ['<pad>', '<pad>']
-            return [x.split(',') for x in prop_list]
+                return ['<pad>']
+            return prop_list
 
         TEXT_FIELD = data.Field(batch_first=False, include_lengths=False, lower=args.lower)
         # WORDNET_TEXT_FIELD = data.Field(fix_length=2, lower=args.lower)
+        WORDNET_TEXT_FIELD = data.Field(preprocessing=preprocessing, lower=args.lower)
         field_dict = {
                 'text': ('text', TEXT_FIELD),
                 'target': ('target', TEXT_FIELD),
@@ -148,14 +150,14 @@ class Dataset(data.TabularDataset):
                 # 'antonyms': ('antonyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
                 # 'hypernyms': ('hypernyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing)),
                 # 'meronyms': ('meronyms', data.NestedField(WORDNET_TEXT_FIELD, preprocessing=preprocessing))
-                 'synonyms_a': ('synonyms_a', TEXT_FIELD),
-                 'synonyms_b': ('synonyms_b', TEXT_FIELD),
-                 'antonyms_a': ('antonyms_a', TEXT_FIELD),
-                 'antonyms_b': ('antonyms_b', TEXT_FIELD),
-                 'hypernyms_a': ('hypernyms_a', TEXT_FIELD),
-                 'hypernyms_b': ('hypernyms_b', TEXT_FIELD),
-                 'meronyms_a': ('meronyms_a', TEXT_FIELD),
-                 'meronyms_b': ('meronyms_b', TEXT_FIELD)
+                 'synonyms_a': ('synonyms_a', WORDNET_TEXT_FIELD),
+                 'synonyms_b': ('synonyms_b', WORDNET_TEXT_FIELD),
+                 'antonyms_a': ('antonyms_a', WORDNET_TEXT_FIELD),
+                 'antonyms_b': ('antonyms_b', WORDNET_TEXT_FIELD),
+                 'hypernyms_a': ('hypernyms_a', WORDNET_TEXT_FIELD),
+                 'hypernyms_b': ('hypernyms_b', WORDNET_TEXT_FIELD),
+                 'meronyms_a': ('meronyms_a', WORDNET_TEXT_FIELD),
+                 'meronyms_b': ('meronyms_b', WORDNET_TEXT_FIELD)
                 }
         suffix = hashlib.md5('{}-{}-{}-{}-{}-lower_{}'.format(version, dataset_dir,
                                                      train_file, valid_file, test_file, args.lower)
@@ -186,7 +188,7 @@ class Dataset(data.TabularDataset):
             TEXT_FIELD.build_vocab(train, vectors=vec)
         else:
             TEXT_FIELD.build_vocab(train)
-        # WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
+        WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
         if args.model == 'rnn':
             train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
                                                     batch_size=batch_size, device=device,
@@ -195,7 +197,7 @@ class Dataset(data.TabularDataset):
             print('Using Bucket Iterator')
             train_iter, valid_iter, test_iter = data.BucketIterator.splits((train, valid, test),
                                                     batch_size=batch_size, device=device,
-                                                    shuffle=False, repeat=False, sort=False)
+                                                    shuffle=bool(args.model != 'rnn'), repeat=False, sort=False)
 
         return train_iter, valid_iter, test_iter, TEXT_FIELD.vocab, TEXT_FIELD.vocab.vectors
 
@@ -208,6 +210,11 @@ def dist_fn(x1, x2, dim=1):
 
 annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size) if args.model == 'rnn' else \
                     'annotated_{}'.format(args.model)
+
+if args.data_version:
+    annotated_data_dir += '_v{}'.format(args.data_version)
+
+
 lex_rels = '_'.join(args.lex_rels) if len(args.lex_rels) > 0 else 'vanilla'
 summary_filename = 'logs/logs_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance
 
@@ -215,7 +222,7 @@ os.system('rm -rf ' + summary_filename)
 os.mkdir(summary_filename)
 writer = SummaryWriter(summary_filename)
 
-train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device='cpu')
+train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
@@ -314,6 +321,7 @@ optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'ada
 # print(milestones)
 # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 3)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 15)
 
 print('Lex Rel List: {}'.format(args.lex_rels))
 def evaluate(data_source):
@@ -334,17 +342,13 @@ def evaluate(data_source):
     start_time = time.time()
     with torch.no_grad():
         for i, batch in enumerate(data_source):
-            data, targets = batch.text.to(device), batch.target.to(device)
-            synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a.to(device), batch.synonyms_b.to(device), batch.antonyms_a.to(device), batch.antonyms_b.to(device), batch.hypernyms_a.to(device), batch.hypernyms_b.to(device), batch.meronyms_a.to(device), batch.meronyms_b.to(device)
+            data, targets = batch.text, batch.target
             # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
-            synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
-            antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
-            hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=0)
-            meronyms = torch.stack((meronyms_a, meronyms_b), dim=0)
-            synonyms = synonyms.view(-1, 2)
-            antonyms = antonyms.view(-1, 2)
-            hypernyms = hypernyms.view(-1, 2)
-            meronyms = meronyms.view(-1, 2)
+            synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
+            synonyms = torch.stack((synonyms_a, synonyms_b), dim=2).view(-1, 2)
+            antonyms = torch.stack((antonyms_a, antonyms_b), dim=2).view(-1, 2)
+            hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=2).view(-1, 2)
+            meronyms = torch.stack((meronyms_a, meronyms_b), dim=2).view(-1, 2)
 
             if args.model == 'retro':
                 output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
@@ -420,22 +424,14 @@ def train(epoch):
     if args.model != 'retro':
         hidden = model.init_hidden(args.batch_size)
 
-    if args.model != 'rnn':
-        shuffle(train_iter)
-
     for idx, batch in enumerate(train_iter):
-        data, targets = batch.text.to(device), batch.target.to(device)
-        synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a.to(device), batch.synonyms_b.to(device), batch.antonyms_a.to(device), batch.antonyms_b.to(device), batch.hypernyms_a.to(device), batch.hypernyms_b.to(device), batch.meronyms_a.to(device), batch.meronyms_b.to(device)
+        data, targets = batch.text, batch.target
         # synonyms, antonyms, hypernyms, meronyms = batch.synonyms, batch.antonyms, batch.hypernyms, batch.meronyms
-        synonyms = torch.stack((synonyms_a, synonyms_b), dim=0)
-        antonyms = torch.stack((antonyms_a, antonyms_b), dim=0)
-        hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=0)
-        meronyms = torch.stack((meronyms_a, meronyms_b), dim=0)
-
-        synonyms = synonyms.view(-1, 2)
-        antonyms = antonyms.view(-1, 2)
-        hypernyms = hypernyms.view(-1, 2)
-        meronyms = meronyms.view(-1, 2)
+        synonyms_a, synonyms_b, antonyms_a, antonyms_b, hypernyms_a, hypernyms_b, meronyms_a, meronyms_b = batch.synonyms_a, batch.synonyms_b, batch.antonyms_a, batch.antonyms_b, batch.hypernyms_a, batch.hypernyms_b, batch.meronyms_a, batch.meronyms_b
+        synonyms = torch.stack((synonyms_a, synonyms_b), dim=2).view(-1, 2)
+        antonyms = torch.stack((antonyms_a, antonyms_b), dim=2).view(-1, 2)
+        hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=2).view(-1, 2)
+        meronyms = torch.stack((meronyms_a, meronyms_b), dim=2).view(-1, 2)
 
         optimizer.zero_grad()
         wn_ratio = args.wn_ratio
@@ -546,11 +542,11 @@ def train(epoch):
 
 patience = 0
 
-model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pt')
-emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
-emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.txt')
+model_name = os.path.join(args.save, 'model_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.pt')
+emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.pkl')
+emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.txt')
 
-rel_emb_name_temp = os.path.join(args.save_emb, 'emb_%s_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + '.pkl')
+rel_emb_name_temp = os.path.join(args.save_emb, 'emb_%s_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.pkl')
 
 vocab_name = os.path.join(args.save, 'vocab_' + args.data + '.pkl')
 pickle.dump(vocab, open(vocab_name, 'wb'))

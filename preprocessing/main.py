@@ -11,6 +11,7 @@ from random import shuffle
 import codecs
 import random
 import string
+import glob
 from collections import Counter
 
 stopwords = nltk.corpus.stopwords.words('english')
@@ -32,6 +33,8 @@ parser.add_argument('--max-pair', type=int, default=15,
                     help='max no of pairs of wordnet relations')
 parser.add_argument('--lower', action='store_true',
                     help='Lowercase lemmas from wordnet.')
+parser.add_argument('--version', type=int, default=1,
+                    help='Version of the code to run.')
 
 args = parser.parse_args()
 word2idx = {}
@@ -91,6 +94,9 @@ def get_lexical_relations(word, word2idx):
                 synonyms.add(tup)
 
             for ant in lemma.antonyms():
+                if args.version >= 2 and syn.pos() != ant.synset().pos():
+                    continue
+
                 name = ant.name()
                 if args.lower:
                     name = name.lower()
@@ -99,38 +105,46 @@ def get_lexical_relations(word, word2idx):
                 if name in word2idx:
                     antonyms.add(tup)
 
-        if syn.pos() != 'v':
-            hyp = syn.hypernyms() + syn.instance_hypernyms()
-            for h in hyp:
-                for lemma in h.lemmas():
-                    name = lemma.name()
-                    if args.lower:
-                        name = name.lower()
+        hyp = syn.hypernyms() + syn.instance_hypernyms()
+        for h in hyp:
+            if (args.version < 3 and syn.pos() == 'v') or (args.version >= 2 and syn.pos() != h.pos()):
+                continue
 
-                    if name == word:
-                        continue
+            for lemma in h.lemmas():
+                name = lemma.name()
+                if args.lower:
+                    name = name.lower()
 
-                    tup = (word, name)
-                    if name in word2idx:
-                        hypernyms.add(tup)
+                if name == word:
+                    continue
 
-            hyp = syn.hyponyms() + syn.instance_hyponyms()
-            for h in hyp:
-                for lemma in h.lemmas():
-                    name = lemma.name()
-                    if args.lower:
-                        name = name.lower()
+                tup = (word, name)
+                if name in word2idx:
+                    hypernyms.add(tup)
 
-                    if name == word:
-                        continue
+        hyp = syn.hyponyms() + syn.instance_hyponyms()
+        for h in hyp:
+            if (args.version < 3 and syn.pos() == 'v') or (args.version >= 2 and syn.pos() != h.pos()):
+                continue
 
-                    tup = (word, name)
-                    if name in word2idx:
-                        hyponyms.add(tup)
-                        hypernyms.add((name, word))
+            for lemma in h.lemmas():
+                name = lemma.name()
+                if args.lower:
+                    name = name.lower()
+
+                if name == word:
+                    continue
+
+                tup = (word, name)
+                if name in word2idx:
+                    hyponyms.add(tup)
+                    hypernyms.add((name, word))
 
         mer = syn.member_meronyms() + syn.part_meronyms() + syn.substance_meronyms()
         for m in mer:
+            if args.version >= 2 and syn.pos() != m.pos():
+                continue
+
             for lemma in m.lemmas():
                 name = lemma.name()
                 if args.lower:
@@ -145,6 +159,9 @@ def get_lexical_relations(word, word2idx):
 
         mer = syn.member_holonyms() + syn.part_holonyms() + syn.substance_holonyms()
         for m in mer:
+            if args.version >= 2 and syn.pos() != m.pos():
+                continue
+
             for lemma in m.lemmas():
                 name = lemma.name()
                 if args.lower:
@@ -159,6 +176,13 @@ def get_lexical_relations(word, word2idx):
                     meronyms.add((word, name))
 
     return synonyms, antonyms, hypernyms, hyponyms, meronyms, holonyms
+
+global_synonyms = set([])
+global_antonyms = set([])
+global_hypernyms = set([])
+global_hyponyms = set([])
+global_meronyms = set([])
+global_holonyms = set([])
 
 def get_lexical_relations_seq(text):
     synonyms = set([])
@@ -188,6 +212,14 @@ def get_lexical_relations_seq(text):
         meronyms.update(word_mer)
         holonyms.update(word_hol)
 
+
+        global_synonyms.update(word_syn)
+        global_antonyms.update(word_ant)
+        global_hypernyms.update(word_hyp)
+        global_hyponyms.update(word_hypo)
+        global_meronyms.update(word_mer)
+        global_holonyms.update(word_hol)
+
     synonyms = list(synonyms)
     antonyms = list(antonyms)
     hypernyms = list(hypernyms)
@@ -200,6 +232,13 @@ def get_lexical_relations_seq(text):
     shuffle(hyponyms)
     shuffle(meronyms)
     shuffle(holonyms)
+
+    # synonym_str = ' '.join([','.join(syn) for syn in synonyms[:args.max_pair]])
+    # antonym_str = ' '.join([','.join(ant) for ant in antonyms[:args.max_pair]])
+    # hypernym_str = ' '.join([','.join(hyp) for hyp in hypernyms[:args.max_pair]])
+    # hyponym_str = ' '.join([','.join(hyp) for hyp in hyponyms[:args.max_pair]])
+    # meronym_str = ' '.join([','.join(mer) for mer in meronyms[:args.max_pair]])
+    # holonym_str = ' '.join([','.join(mer) for mer in holonyms[:args.max_pair]])
 
     synonym_a = ' '.join([(syn[0]) for syn in synonyms[:args.max_pair]])
     synonym_b = ' '.join([(syn[1]) for syn in synonyms[:args.max_pair]])
@@ -215,6 +254,12 @@ def get_lexical_relations_seq(text):
     holonym_b = ' '.join([(mer[1]) for mer in holonyms[:args.max_pair]])
 
     return {
+                # 'synonyms': synonym_str,
+                # 'antonyms': antonym_str,
+                # 'hypernyms': hypernym_str,
+                # 'hyponyms': hyponym_str,
+                # 'meronyms': meronym_str,
+                # 'holonyms': holonym_str
                 'synonyms_a': synonym_a,
                 'synonyms_b': synonym_b,
                 'antonyms_a': antonym_a,
@@ -348,6 +393,8 @@ else:
 out_dir = os.path.join(args.data,
                         'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size) if args.model == 'rnn' else \
                         'annotated_{}'.format(args.model))
+if args.version > 1:
+    out_dir += '_v{}'.format(args.version)
 
 if not os.path.exists(out_dir):
     os.mkdir(out_dir)
@@ -357,6 +404,7 @@ print("Output Dir: %s" % out_dir)
 if args.model == 'retro':
     create_corpus = create_glove_corpus
     train, valid, test = ['vocab.txt'] * 3
+    args.lower = True
 elif args.model == 'rnn':
     create_corpus = create_rnn_corpus
     train, valid, test = ['train.txt', 'valid.txt', 'test.txt']
@@ -373,3 +421,22 @@ print('Creating test files')
 create_corpus(os.path.join(args.data, test), os.path.join(out_dir, 'test.txt'))
 print('Creating valid files')
 create_corpus(os.path.join(args.data, valid), os.path.join(out_dir, 'valid.txt'))
+
+with open('syn.txt', 'w') as syn:
+    for syn_pair in global_synonyms:
+        syn.write('%s\t%s\n' % syn_pair)
+
+with open('ant.txt', 'w') as ant:
+    for ant_pair in global_antonyms:
+       ant.write('%s\t%s\n' % ant_pair)
+
+with open('hyp.txt', 'w') as hyp:
+    for hyp_pair in global_hyponyms:
+        hyp.write('%s\t%s\n' % hyp_pair)
+
+with open('mer.txt', 'w') as mer:
+    for mer_pair in global_meronyms:
+        mer.write('%s\t%s\n' % mer_pair)
+
+for pkl_file in glob.glob('/'.join([out_dir, '*.pkl'])):
+    os.remove(pkl_file)

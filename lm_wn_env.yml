@@ -21,7 +21,6 @@ dependencies:
   - libffi=3.2.1=hd88cf55_4
   - libgcc-ng=8.2.0=hdf63c60_1
   - libgfortran-ng=7.3.0=hdf63c60_0
-  - libstdcxx-ng=8.2.0=hdf63c60_1
   - mkl=2019.1=144
   - mkl_fft=1.0.10=py36ha843d7b_0
   - mkl_random=1.0.2=py36hd81dba3_0

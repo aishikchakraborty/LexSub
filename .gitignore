@@ -7,7 +7,9 @@ slurm-*.*
 *.pkl
 data/*
 log/*
+logs/*
 models/*
 embeddings/*
 *.*~
 extrinsic_tasks/datasets/*
+lm_wn_*machine_assignments*

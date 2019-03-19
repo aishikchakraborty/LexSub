@@ -97,6 +97,7 @@ parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
 parser.add_argument('--extend_wn', action='store_true', help='This flag allows the final embedding to be concatenation of wn embedding and lm embedding.')
 parser.add_argument('--nce', action='store_true', help='Use nce for training.')
 parser.add_argument('--nce_loss', type=str, default='nce', help='Type of nce to use.')
+parser.add_argument('--num_neg_sample_subspace', type=int, default=10, help='Number of negative samples to use while training lexical subspace.')
 args = parser.parse_args()
 
 print(args)
@@ -268,7 +269,8 @@ if args.model == 'rnn':
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn,
-                             dist_fn=dist_fn).to(device)
+                             dist_fn=dist_fn,
+                             num_neg_samples=args.num_neg_sample_subspace).to(device)
     model = model.WNLM(lm_model, wn_model).to(device)
 elif args.model == 'retro':
     gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained.to(device), dist_fn=dist_fn).to(device)
@@ -277,7 +279,8 @@ elif args.model == 'retro':
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn,
-                             dist_fn=dist_fn).to(device)
+                             dist_fn=dist_fn,
+                             num_neg_samples=args.num_neg_sample_subspace).to(device)
     model = model.GloveModel(gl_model, wn_model).to(device)
 elif args.model == 'cbow':
     wn_offset = args.emsize if args.extend_wn else 0
@@ -290,7 +293,9 @@ elif args.model == 'cbow':
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
-                             random=args.random_wn).to(device)
+                             random=args.random_wn,
+                             dist_fn=dist_fn,
+                             num_neg_samples=args.num_neg_sample_subspace).to(device)
 
     model = model.WNLM(lm_model, wn_model).to(device)
 elif args.model == 'skipgram':
@@ -304,7 +309,9 @@ elif args.model == 'skipgram':
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
-                             random=args.random_wn, dist_fn=dist_fn).to(device)
+                             random=args.random_wn,
+                             dist_fn=dist_fn,
+                             num_neg_samples=args.num_neg_sample_subspace).to(device)
 
     model = model.WNLM(lm_model, wn_model).to(device)
 else:

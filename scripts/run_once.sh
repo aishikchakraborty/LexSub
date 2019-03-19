@@ -6,42 +6,30 @@ set -ex
 export mdl=${mdl:="rnn"}
 
 if [ "${data}" == "wikitext2" ]; then
+    export epoch="${epoch:=40}"
     export bptt="${bptt:=35}"
     export data="wikitext-2"
     export nhid="${nhid:=300}"
+    time="${time:=23:00:00}"
     export mem="${mem:=30000}"
-
-    if [ "${mdl}" == "skipgram" ]; then
-        time="${time:=1-00:00:00}"
-        export epoch="${epoch:=40}"
-    elif [ "${mdl}" == "rnn" ]; then
-        time="${time:=3:00:00}"
-        export epoch="${epoch:=70}"
-    fi
-
 fi
 
 if [ "${data}" == "wikitext103" ]; then
+    export epoch="${epoch:=10}"
     export bptt="${bptt:=50}"
     export data="wikitext-103"
     export nhid="${nhid:=1200}"
-    export adaptive=true
-    export time="${time:=2-00:00:00}"
-
-    if [ "${mdl}" == "skipgram" ]; then
-        export epoch="${epoch:=10}"
-        export mem="${mem:=257000M}"
-    elif [ "${mdl}" == "rnn" ]; then
-        export epoch="${epoch:=9}"
-        export mem="${mem:=90000}"
-    fi
+    #export adaptive=true
+    export nce=true
+    export time="${time:=1-10:00:00}"
+    export mem="${mem:=257000M}"
 fi
 
 if [ "${mdl}" == "retro" ]; then
     export epoch="${epoch:=40}"
     export bptt="${bptt:=1}"
     export data=${data:=glove}
-    export bsize=${bsize:=1000}
+    export bsize=${bsize:=512}
     export lr=${lr:=2}
     export optim="${optim:=adagrad}"
     export time="${time:=3:00:00}"
@@ -81,7 +69,6 @@ job_name=${job_name}"$([[ $random_wn ]] && echo _radom || echo '')"
 job_name=${job_name}"$([[ $seg ]] && echo _seg || echo '')"
 job_name=${job_name}"$([[ $lower ]] && echo _lower || echo '')"
 job_name=${job_name}"$([[ $extend_wn ]] && echo _extend || echo '')"
-job_name=${job_name}"$([[ $data_version ]] && echo "_wn_v${data_version}" || echo '')"
 dir="output/""${job_name}/""${date_suffix:=$(date '+%Y_%m_%d_%H_%M')}"
 
 export output_dir=${output_dir:=$dir}
@@ -91,7 +78,7 @@ export mode="${mode:=slurm}"
 
 mkdir -p ${output_dir}
 
-if [ "${mode}" == "slurm" ] && [ "${data}" == "wikitext-103" ] && [ "${mdl}" == "skipgram" ]; then
+if [ "${mode}" == "slurm" -a "${data}" == "wikitext-103" ]; then
     sbatch -J "${job_name}" -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --nodes=1 --gres=gpu:1 --mem 0 scripts/launcher_wn.sh
 elif [ "${mode}" == "slurm" ]; then
     sbatch -J "${job_name}" -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --mem ${mem} --gres=gpu:1 scripts/launcher_wn.sh

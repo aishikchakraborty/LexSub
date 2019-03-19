@@ -320,7 +320,7 @@ optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'ada
 #                 [10, 15, 25, 35]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
 # print(milestones)
 # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 3)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=3, eta_min=0.01)
 # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 15)
 
 print('Lex Rel List: {}'.format(args.lex_rels))

@@ -362,12 +362,12 @@ def create_skipgram_corpus(in_path, out_path):
     total = sum(w2freq.values(), 0.0)
     w2freq = {key:w2freq[key]/total for key in w2freq.keys()}
 
-    context=4
+    context=5
 
     with codecs.open(out_path, 'w', encoding="utf-8") as out_file:
         for i in range(context, len(tokens)-context):
             text = tokens[i]
-            p = 1. - math.sqrt(1e-5/w2freq[text])
+            p = 1. - math.sqrt(args.ss_t/w2freq[text])
             if random.random() > p:
                 output = get_lexical_relations_seq([text])
 

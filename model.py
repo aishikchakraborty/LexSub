@@ -461,7 +461,7 @@ class WNModel(nn.Module):
         self.weights = vocab_freq / vocab_freq.sum()
         self.weights = self.weights.pow(0.75)
         self.weights = self.weights/self.weights.sum()
-        self.n_negs = 20
+        self.n_negs = 10
 
         if 'syn' in lex_rels:
             self.syn_proj = nn.Linear(emb_dim, wn_dim, bias=False)

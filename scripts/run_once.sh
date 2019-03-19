@@ -41,7 +41,7 @@ if [ "${mdl}" == "retro" ]; then
     export epoch="${epoch:=40}"
     export bptt="${bptt:=1}"
     export data=${data:=glove}
-    export bsize=${bsize:=512}
+    export bsize=${bsize:=1000}
     export lr=${lr:=2}
     export optim="${optim:=adagrad}"
     export time="${time:=3:00:00}"
@@ -81,6 +81,7 @@ job_name=${job_name}"$([[ $random_wn ]] && echo _radom || echo '')"
 job_name=${job_name}"$([[ $seg ]] && echo _seg || echo '')"
 job_name=${job_name}"$([[ $lower ]] && echo _lower || echo '')"
 job_name=${job_name}"$([[ $extend_wn ]] && echo _extend || echo '')"
+job_name=${job_name}"$([[ $data_version ]] && echo "_wn_v${data_version}" || echo '')"
 dir="output/""${job_name}/""${date_suffix:=$(date '+%Y_%m_%d_%H_%M')}"
 
 export output_dir=${output_dir:=$dir}

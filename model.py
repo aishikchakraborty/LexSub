@@ -449,7 +449,7 @@ class GloveEncoderModel(nn.Module):
         return output_dict
 
 class WNModel(nn.Module):
-    def __init__(self, lex_rels, vocab_freq, embedding, emb_dim, wn_dim, pad_idx, wn_offset=0, antonym_margin=1, dist_fn=F.pairwise_distance, fixed=False, random=False):
+    def __init__(self, lex_rels, vocab_freq, embedding, emb_dim, wn_dim, pad_idx, wn_offset=0, antonym_margin=1, dist_fn=F.pairwise_distance, fixed=False, random=False, num_neg_samples=10):
         super(WNModel, self).__init__()
         self.embedding = embedding
         self.emb_dim = emb_dim
@@ -461,7 +461,7 @@ class WNModel(nn.Module):
         self.weights = vocab_freq / vocab_freq.sum()
         self.weights = self.weights.pow(0.75)
         self.weights = self.weights/self.weights.sum()
-        self.n_negs = 10
+        self.n_negs = num_neg_samples 
 
         if 'syn' in lex_rels:
             self.syn_proj = nn.Linear(emb_dim, wn_dim, bias=False)

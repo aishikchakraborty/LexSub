@@ -1,0 +1,1 @@
+from extrinsic_tasks.models.lex_rel_classifier import LexicalRelationsClassifier

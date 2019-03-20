@@ -140,7 +140,7 @@ class Dataset(data.TabularDataset):
                 return ['<pad>']
             return prop_list
 
-        TEXT_FIELD = data.Field(batch_first=False, include_lengths=False, lower=args.lower)
+        TEXT_FIELD = data.Field(batch_first=True, include_lengths=False, lower=args.lower)
         # WORDNET_TEXT_FIELD = data.Field(fix_length=2, lower=args.lower)
         WORDNET_TEXT_FIELD = data.Field(preprocessing=preprocessing, lower=args.lower)
         field_dict = {
@@ -306,9 +306,13 @@ elif args.model == 'skipgram':
                              fixed=args.fixed_wn,
                              random=args.random_wn, dist_fn=dist_fn).to(device)
 
-    model = model.WNLM(lm_model, wn_model).to(device)
+    model = model.WNLM(lm_model, wn_model)
+    device_ids = np.arange(torch.cuda.device_count()).tolist()
+    model = nn.DataParallel(model, device_ids=device_ids, output_device=device_ids[0], dim=0).cuda()
+    # model = model.to(device)
 else:
     raise ValueError('Illegal model type: %s. Options are [rnn, cbow, retro]' % args.model)
+
 
 #model = model.RNNWordnetModel(args.rnn_type, ntokens, args.emsize, args.nhid, args.nlayers, args.wn_hid, args.dropout, args.tied, args.adaptive, cutoffs).to(device)
 
@@ -337,7 +341,7 @@ def evaluate(data_source):
     total_loss_mern = 0.
 
     if args.model != 'retro':
-        hidden = model.init_hidden(args.batch_size)
+        hidden = model.module.init_hidden(args.batch_size)
 
     start_time = time.time()
     with torch.no_grad():
@@ -366,21 +370,23 @@ def evaluate(data_source):
                     loss = criterion(output.view(-1, ntokens), targets.view(-1))
             # if args.model == 'skipgram':
             #     loss = output_dict['loss_ppl']
-            total_loss += loss
+            total_loss += loss.mean().item()
             if 'syn' in args.lex_rels:
                 emb_syn1, emb_syn2 = output_dict['syn_emb']
                 syn_mask = 1 - (synonyms[:,0] == pad_idx).float()
                 syn_len = torch.sum(syn_mask)
-                loss_syn = output_dict.get('loss_syn',
-                                            torch.sum(dist_fn(emb_syn1, emb_syn2) * syn_mask)/syn_len)
-                total_loss_syn += loss_syn
+                loss_syn = output_dict['loss_syn']
+                # loss_syn = output_dict.get('loss_syn',
+                #                             torch.sum(dist_fn(emb_syn1, emb_syn2) * syn_mask)/syn_len)
+                total_loss_syn += loss_syn.mean().item()
 
                 emb_ant1, emb_ant2 = output_dict['ant_emb']
                 ant_mask = 1 - (antonyms[:,0] == pad_idx).float()
                 ant_len = torch.sum(ant_mask)
-                loss_ant = output_dict.get('loss_ant',
-                                            torch.sum(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)) * ant_mask)/ant_len)
-                total_loss_ant += loss_ant
+                loss_ant = output_dict['loss_ant']
+                # loss_ant = output_dict.get('loss_ant',
+                #                             torch.sum(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)) * ant_mask)/ant_len)
+                total_loss_ant += loss_ant.mean().item()
 
             if 'hyp' in args.lex_rels:
                 if 'loss_hyp' in output_dict:
@@ -391,7 +397,7 @@ def evaluate(data_source):
                     hyp_len = torch.sum(hyp_mask)
                     loss_hyp = torch.sum(dist_fn(emb_hyp1, emb_hyp2) * hyp_mask)/hyp_len
 
-                total_loss_hyp += loss_hyp
+                total_loss_hyp += loss_hyp.mean().item()
 
             if 'mer' in args.lex_rels:
                 if 'loss_mer' in output_dict:
@@ -402,7 +408,7 @@ def evaluate(data_source):
                     mer_len = torch.sum(mer_mask)
                     loss_mer = torch.sum(dist_fn(emb_mern1, emb_mern2) * mer_mask)/mer_len
 
-                total_loss_mern += loss_mer
+                total_loss_mern += loss_mer.mean().item()
 
     if args.model == 'rnn' and args.nce:
         model.lm.criterion.loss_type = args.nce_loss
@@ -422,7 +428,7 @@ def train(epoch):
     total_loss_reg = 0.
     start_time = time.time()
     if args.model != 'retro':
-        hidden = model.init_hidden(args.batch_size)
+        hidden = model.module.init_hidden(args.batch_size)
 
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target
@@ -438,12 +444,12 @@ def train(epoch):
 
         if args.model == 'retro':
             output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
+
             emb, emb_glove = output_dict['glove_emb']
             loss = output_dict.get('glove_loss',
                                     torch.mean(dist_fn(emb, emb_glove)))
         else:
             output_dict = model(data, hidden, targets, synonyms, antonyms, hypernyms, meronyms)
-
             output, hidden = output_dict['log_probs'], output_dict['hidden_vec']
             hidden = repackage_hidden(hidden)
 
@@ -459,18 +465,20 @@ def train(epoch):
             emb_syn1, emb_syn2 = output_dict['syn_emb']
             syn_mask = 1 - (synonyms[:,0] == pad_idx).float()
             syn_len = torch.sum(syn_mask)
-            loss_syn = output_dict.get('loss_syn',
-                                        torch.sum(dist_fn(emb_syn1, emb_syn2) * syn_mask)/syn_len)
+            loss_syn = output_dict['loss_syn']
+            # loss_syn = output_dict.get('loss_syn',
+            #                             torch.sum(dist_fn(emb_syn1, emb_syn2) * syn_mask)/syn_len)
 
             emb_ant1, emb_ant2 = output_dict['ant_emb']
             ant_mask = 1 - (antonyms[:,0] == pad_idx).float()
             ant_len = torch.sum(ant_mask)
-            loss_ant = output_dict.get('loss_ant',
-                                        torch.sum(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)) * ant_mask)/ant_len)
+            loss_ant = output_dict['loss_ant']
+            # loss_ant = output_dict.get('loss_ant',
+            #                             torch.sum(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)) * ant_mask)/ant_len)
 
             total_loss += wn_ratio * (loss_syn + loss_ant)
-            total_loss_syn += loss_syn.item()
-            total_loss_ant += loss_ant.item()
+            total_loss_syn += loss_syn.mean().item()
+            total_loss_ant += loss_ant.mean().item()
 
         if 'hyp' in args.lex_rels:
             if 'loss_hyp' in output_dict:
@@ -482,7 +490,7 @@ def train(epoch):
                 loss_hyp = torch.sum(dist_fn(emb_hyp1, emb_hyp2) * hyp_mask)/hyp_len
 
             total_loss += wn_ratio * loss_hyp
-            total_loss_hyp += loss_hyp.item()
+            total_loss_hyp += loss_hyp.mean().item()
 
         if 'mer' in args.lex_rels:
             if 'loss_mer' in output_dict:
@@ -494,21 +502,21 @@ def train(epoch):
                 loss_mer = torch.sum(dist_fn(emb_mern1, emb_mern2) * mer_mask)/mer_len
 
             total_loss += wn_ratio * loss_mer
-            total_loss_mern += loss_mer.item()
+            total_loss_mern += loss_mer.mean().item()
 
         if args.reg:
             reg_loss = output_dict.get('reg_loss', 0)
             total_loss_reg = reg_loss
             total_loss += reg_loss
 
-        total_loss.backward()
+        total_loss.mean().backward()
 
         # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
         torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         optimizer.step()
         # if args.model == 'skipgram':
         #     loss = output_dict['loss_ppl']
-        total_loss_ += loss.item()
+        total_loss_ += loss.mean().item()
 
         if idx % args.log_interval == 0 and idx > 0:
             cur_loss = total_loss_ / args.log_interval
@@ -560,6 +568,7 @@ try:
         if args.model != 'retro':
             val_loss, loss_syn, loss_ant, loss_hyp, loss_mer = evaluate(valid_iter)
             print('-' * 89)
+            # import pdb;pdb.set_trace();
             print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | valid ppl {:8.2f} | syn loss {:5.2f} | ant loss {:5.2f} | hyp loss {:5.2f} | mer loss {:5.2f}'
                         .format(epoch, (time.time() - epoch_start_time), val_loss, math.exp(val_loss),
                                         loss_syn, loss_ant, loss_hyp, loss_mer))
@@ -569,7 +578,7 @@ try:
                 with open(model_name, 'wb') as f:
                     torch.save(model, f)
                 print('Saving learnt embeddings : %s' % emb_name)
-                pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
+                pickle.dump(model.module.encoder.weight.data, open(emb_name, 'wb'))
 
                 best_val_loss = val_loss
                 patience = 0
@@ -583,7 +592,7 @@ try:
             with open(model_name, 'wb') as f:
                 torch.save(model, f)
             print('Saving learnt embeddings : %s' % emb_name)
-            pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
+            pickle.dump(model.module.encoder.weight.data, open(emb_name, 'wb'))
 
 except KeyboardInterrupt:
     print('-' * 89)
@@ -595,7 +604,7 @@ with open(model_name, 'rb') as f:
     # after load the rnn params are not a continuous chunk of memory
     # this makes them a continuous chunk, and will speed up forward pass
     if args.model=='rnn':
-        model.lm.rnn.flatten_parameters()
+        model.module.lm.rnn.flatten_parameters()
 
 
 # Run on test data.
@@ -607,9 +616,9 @@ if args.model != 'retro':
     print('=' * 89)
 
 print('Saving final learnt embeddings ')
-pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
+pickle.dump(model.module.encoder.weight.data, open(emb_name, 'wb'))
 with open(emb_name_txt, 'w') as f:
-    final_emb = model.encoder.weight.data.cpu().numpy()
+    final_emb = model.module.encoder.weight.data.cpu().numpy()
     for i in range(final_emb.shape[0]):
         f.write(vocab.itos[i] + ' ')
         f.write(' '.join([str(x) for x in final_emb[i, :]]) + '\n')
@@ -618,16 +627,16 @@ for rel in args.lex_rels:
     rel_emb_name = rel_emb_name_temp % rel
     print('Saving lexical subspace embeddings : %s' % rel_emb_name)
     if rel == 'syn':
-        rel_emb = model.wn.syn_proj(model.wn.embedding.weight)
+        rel_emb = model.module.wn.syn_proj(model.module.wn.embedding.weight)
         pickle.dump(rel_emb.data, open(rel_emb_name, 'wb'))
     elif rel == 'hyp':
-        rel_emb_1 = model.wn.hypn_proj(model.wn.embedding.weight)
+        rel_emb_1 = model.module.wn.hypn_proj(model.module.wn.embedding.weight)
         pickle.dump(rel_emb_1.data, open(rel_emb_name_temp % ('hypn_hypernyms'), 'wb'))
-        rel_emb_2 = model.wn.hypn_rel(rel_emb_1)
+        rel_emb_2 = model.module.wn.hypn_rel(rel_emb_1)
         pickle.dump(rel_emb_2.data, open(rel_emb_name_temp % ('hypn_hyponyms'), 'wb'))
 
     elif rel == 'mer':
-        rel_emb_1 = model.wn.mern_proj(model.wn.embedding.weight)
+        rel_emb_1 = model.module.wn.mern_proj(model.module.wn.embedding.weight)
         pickle.dump(rel_emb_1.data, open(rel_emb_name_temp % ('mern_meronyms'), 'wb'))
-        rel_emb_2 = model.wn.mern_rel(rel_emb_1)
+        rel_emb_2 = model.module.wn.mern_rel(rel_emb_1)
         pickle.dump(rel_emb_2.data, open(rel_emb_name_temp % ('mern_holonyms'), 'wb'))

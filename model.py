@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
+from collections import OrderedDict
 
 from nce import IndexLinear
 
@@ -332,35 +333,6 @@ class SkipGramModel(nn.Module):
         self.weights = self.weights.pow(0.75)
         self.weights = self.weights/self.weights.sum()
 
-
-        # if not proj_lm or lm_dim is None:
-        #     lm_dim = ninp
-        #
-        #
-        # if nce:
-        #     def build_unigram_noise(freq):
-        #         """build the unigram noise from a list of frequency
-        #         Parameters:
-        #             freq: a tensor of #occurrences of the corresponding index
-        #         Return:
-        #             unigram_noise: a torch.Tensor with size ntokens,
-        #             elements indicate the probability distribution
-        #         """
-        #         total = freq.sum()
-        #         noise = freq / total
-        #         assert abs(noise.sum() - 1) < 0.001
-        #         return noise
-        #
-        #     self.criterion = IndexLinear(lm_dim, ntoken,
-        #                         noise=build_unigram_noise(vocab_freq),
-        #                         noise_ratio=int(ntoken/100),
-        #                         loss_type=nce_loss)
-        # else:
-        #     if adaptive:
-        #         self.adaptive_softmax = nn.AdaptiveLogSoftmaxWithLoss(lm_dim, ntoken, cutoffs=cutoffs)
-        #     else:
-        #         self.decoder = nn.Linear(lm_dim, ntoken)
-        #     self.criterion = nn.NLLLoss()
         self.ninp = ninp
         self.ntoken = ntoken
         self.proj_lm = proj_lm
@@ -395,13 +367,13 @@ class SkipGramModel(nn.Module):
 
 
     def forward(self, input, hidden, targets=None):
-        output_dict={}
+        output_dict=OrderedDict()
         n_negs = 20
 
-        batch_size = input.size(1)
+        batch_size = input.size(0)
         emb_dim = self.ninp
         if targets is not None:
-            context_size = targets.size(0)
+            context_size = targets.size(1)
         else:
             context_size = 8
 
@@ -418,7 +390,7 @@ class SkipGramModel(nn.Module):
         output_dict['log_probs'] = emb_output
         output_dict['hidden_vec'] = emb_output
         output_dict['loss_lm'] = -(oloss + nloss).mean()
-        output_dict['loss_ppl'] = -(oloss).mean()
+
 
         return output_dict
 
@@ -510,7 +482,8 @@ class WNModel(nn.Module):
         self.dist_fn = dist_fn
 
     def forward(self, synonyms=None, antonyms=None, hypernyms=None, meronyms=None):
-        output_dict = {}
+        output_dict = OrderedDict()
+
         if 'syn' in self.lex_rels and synonyms is not None:
             emb_syn1 = self.syn_proj(self.embedding(synonyms[:, 0]))
             emb_syn2 = self.syn_proj(self.embedding(synonyms[:, 1]))
@@ -588,9 +561,9 @@ class WNLM(nn.Module):
     def forward(self, input, hidden, targets=None, synonyms=None, antonyms=None, hypernyms=None, meronyms=None):
         lm_out_dict = self.lm(input, hidden, targets)
         wn_out_dict = self.wn(synonyms, antonyms, hypernyms, meronyms)
-
         # This merges two dictionaries and creates a single dict with fields from
         # both of them.
+
         return {**lm_out_dict, **wn_out_dict}
 
 class GloveModel(nn.Module):

@@ -38,3 +38,15 @@
 2019_03_15_13_26 - decomposable_wikitext-2_skipgram_syn_hyp_mer_lower - 18244027 - cdr340.int.cedar.computecanada.ca - output/wikitext-2_skipgram_syn_hyp_mer_lower/2019_03_15_00_37
 2019_03_15_13_26 - ner_wikitext-2_skipgram_syn_hyp_mer_lower - 18244024 - cdr345.int.cedar.computecanada.ca - output/wikitext-2_skipgram_syn_hyp_mer_lower/2019_03_15_00_37
 2019_03_15_13_26 - bidaf_wikitext-2_skipgram_syn_hyp_mer_lower - 18244029 - cdr302.int.cedar.computecanada.ca - output/wikitext-2_skipgram_syn_hyp_mer_lower/2019_03_15_00_37
+2019_03_19_18_52 - ner_sh - 12821364 - gra952 - output/wikitext-2_skipgram_syn_lower/2019_03_19_18_27
+2019_03_19_18_52 - sst_sh - 12821366 - gra954 - output/wikitext-2_skipgram_syn_lower/2019_03_19_18_27
+2019_03_19_18_55 - decomposable_sh - 12821367 - gra874 - output/wikitext-2_skipgram_syn_lower/2019_03_19_18_27
+2019_03_19_18_59 - bidaf_sh - 12821368 - gra954 - output/wikitext-2_skipgram_syn_lower/2019_03_19_18_27
+2019_03_19_20_16 - ner_sh - 12824459 - gra974 - output/wikitext-2_skipgram_syn_lower/2019_03_19_19_52
+2019_03_19_20_17 - sst_sh - 12824460 - gra952 - output/wikitext-2_skipgram_syn_lower/2019_03_19_19_52
+2019_03_19_20_17 - ner_sh - 12824479 - gra974 - output/wikitext-2_skipgram_syn_lower/2019_03_19_19_52
+2019_03_19_20_19 - sst_sh - 12824481 - gra859 - output/wikitext-2_skipgram_syn_lower/2019_03_19_19_52
+2019_03_19_20_19 - decomposable_sh - 12824461 - gra859 - output/wikitext-2_skipgram_syn_lower/2019_03_19_19_52
+2019_03_19_20_23 - bidaf_sh - 12824462 - gra848 - output/wikitext-2_skipgram_syn_lower/2019_03_19_19_52
+2019_03_19_20_23 - decomposable_sh - 12824482 - gra848 - output/wikitext-2_skipgram_syn_lower/2019_03_19_19_52
+2019_03_19_20_23 - bidaf_sh - 12824483 - gra848 - output/wikitext-2_skipgram_syn_lower/2019_03_19_19_52

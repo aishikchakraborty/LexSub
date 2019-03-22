@@ -203,13 +203,14 @@ class RankedNeighbors():
     def dump_neighbors(self):
         with open(self.output_filename, 'w') as out_file:
             words=set([])
-            data_reader = csv.reader(open('unsup_datasets/simlex999.csv'), delimiter=',')
-            for i, row in enumerate(data_reader):
-                if i == 0:
-                    continue
-                w1, w2  = row[0], row[1]
-                words.add(w1)
-                words.add(w2)
+            for d in ['unsup_datasets/simlex999.csv','unsup_datasets/hyperlex.csv']:
+                data_reader = csv.reader(open(d), delimiter=',')
+                for i, row in enumerate(data_reader):
+                    if i == 0:
+                        continue
+                    w1, w2  = row[0], row[1]
+                    words.add(w1)
+                    words.add(w2)
 
             words = sorted(list(words))
             for i, x in enumerate(words):

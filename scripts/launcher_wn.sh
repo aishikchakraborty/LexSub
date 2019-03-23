@@ -236,8 +236,8 @@ if [ ${step} -lt 8 ]; then
     fi
 
     if [ -n "${hyp}" ]; then
-        emb_hyp_filename1="../${output_dir}/emb_hypn_hyponyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
-        emb_hyp_filename2="../${output_dir}/emb_hypn_hypernyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
+        emb_hyp_filename1="../${output_dir}/emb_hypn_hypernyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
+        emb_hyp_filename2="../${output_dir}/emb_hypn_hyponyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
         if [ -n "${data_version}" ]; then
             emb_hyp_filename1+="_wn_v""${data_version}"
             emb_hyp_filename2+="_wn_v""${data_version}"

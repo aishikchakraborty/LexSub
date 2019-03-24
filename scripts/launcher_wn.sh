@@ -242,8 +242,8 @@ if [ ${step} -lt 8 ]; then
             emb_hyp_filename1+="_wn_v""${data_version}"
             emb_hyp_filename2+="_wn_v""${data_version}"
         fi
-        python main.py --sim-task --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --prefix hyp
-        python main.py --hypernymy --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl > ../${output_dir}/hyp_hypernymysuite.json
+        python main.py --sim-task --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename1}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --prefix hyp
+        python main.py --hypernymy --emb ${emb_hyp_filename2}.pkl --emb2 ${emb_hyp_filename1}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl > ../${output_dir}/hyp_hypernymysuite.json
         python main.py --neighbors --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --output_file ../${output_dir}/hyp_neighbors.txt
     fi
 

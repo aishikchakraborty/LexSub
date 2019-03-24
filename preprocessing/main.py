@@ -102,7 +102,9 @@ def get_lexical_relations(word, word2idx):
                 if name in word2idx:
                     antonyms.add(tup)
 
-        hyp = syn.hypernyms() + syn.instance_hypernyms()
+        # hyp = syn.hypernyms() + syn.instance_hypernyms()
+        hyp =  syn.instance_hypernyms()
+
         for h in hyp:
             if args.version < 2 and syn.pos() == 'v':
                 continue
@@ -119,7 +121,10 @@ def get_lexical_relations(word, word2idx):
                 if name in word2idx:
                     hypernyms.add(tup)
 
-        hyp = syn.hyponyms() + syn.instance_hyponyms()
+        hyp = syn.instance_hyponyms()
+        if min([len(x) for x in syn.hypernym_paths()]) > 5:
+            hyp += syn.hyponyms()
+
         for h in hyp:
             if args.version < 2 and syn.pos() == 'v':
                 continue

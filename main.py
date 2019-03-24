@@ -97,6 +97,7 @@ parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
 parser.add_argument('--extend_wn', action='store_true', help='This flag allows the final embedding to be concatenation of wn embedding and lm embedding.')
 parser.add_argument('--nce', action='store_true', help='Use nce for training.')
 parser.add_argument('--nce_loss', type=str, default='nce', help='Type of nce to use.')
+parser.add_argument('--num_neg_sample_subspace', type=int, default=10, help='Number of negative samples to use while training lexical subspace.')
 args = parser.parse_args()
 
 print(args)
@@ -174,6 +175,7 @@ class Dataset(data.TabularDataset):
                 save_iters = True
 
         if load_from_file:
+                print('Loading from file')
                 dataset = cls.splits(field_dict, dataset_dir, train_file, valid_file, test_file, **kwargs)
                 if save_iters:
                     torch.save([d.examples for d in dataset], examples_path)
@@ -216,7 +218,7 @@ if args.data_version:
 
 
 lex_rels = '_'.join(args.lex_rels) if len(args.lex_rels) > 0 else 'vanilla'
-summary_filename = 'logs/logs_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance
+summary_filename = os.path.join(args.save, 'logs_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance)
 
 os.system('rm -rf ' + summary_filename)
 os.mkdir(summary_filename)
@@ -229,7 +231,7 @@ train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir
 # train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
 #                                                              device=device, root=args.data)
 # vocab = train_iter.dataset.fields['text'].vocab
-# train_iter = [x for x in train_iter]
+train_iter = [x for x in train_iter]
 # valid_iter = [x for x in valid_iter]
 # test_iter = [x for x in test_iter]
 
@@ -268,7 +270,8 @@ if args.model == 'rnn':
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn,
-                             dist_fn=dist_fn).to(device)
+                             dist_fn=dist_fn,
+                             num_neg_samples=args.num_neg_sample_subspace).to(device)
     model = model.WNLM(lm_model, wn_model).to(device)
 elif args.model == 'retro':
     gl_model = model.GloveEncoderModel(ntokens, args.emsize, pretrained.to(device), dist_fn=dist_fn).to(device)
@@ -277,7 +280,8 @@ elif args.model == 'retro':
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn,
-                             dist_fn=dist_fn).to(device)
+                             dist_fn=dist_fn,
+                             num_neg_samples=args.num_neg_sample_subspace).to(device)
     model = model.GloveModel(gl_model, wn_model).to(device)
 elif args.model == 'cbow':
     wn_offset = args.emsize if args.extend_wn else 0
@@ -290,7 +294,9 @@ elif args.model == 'cbow':
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
-                             random=args.random_wn).to(device)
+                             random=args.random_wn,
+                             dist_fn=dist_fn,
+                             num_neg_samples=args.num_neg_sample_subspace).to(device)
 
     model = model.WNLM(lm_model, wn_model).to(device)
 elif args.model == 'skipgram':
@@ -304,7 +310,9 @@ elif args.model == 'skipgram':
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
                              fixed=args.fixed_wn,
-                             random=args.random_wn, dist_fn=dist_fn).to(device)
+                             random=args.random_wn,
+                             dist_fn=dist_fn,
+                             num_neg_samples=args.num_neg_sample_subspace).to(device)
 
     model = model.WNLM(lm_model, wn_model).to(device)
 else:
@@ -314,14 +322,13 @@ else:
 
 criterion = nn.NLLLoss()
 
-optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
-# milestones=[100] if args.optim != 'sgd' else \
-#             ([3,6,7] if args.data == 'wikitext-103' else \
-#                 [10, 15, 25, 35]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
-# print(milestones)
-# scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 3)
-# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 15)
+optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr, weight_decay=0.001)
+milestones=[100] if args.optim != 'sgd' else \
+            ([3,6,7] if args.data == 'wikitext-103' else \
+                [10, 15, 25, 35]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
+print(milestones)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 3)
 
 print('Lex Rel List: {}'.format(args.lex_rels))
 def evaluate(data_source):
@@ -423,6 +430,9 @@ def train(epoch):
     start_time = time.time()
     if args.model != 'retro':
         hidden = model.init_hidden(args.batch_size)
+    
+    if args.model != 'rnn':
+        shuffle(train_iter)
 
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target
@@ -578,7 +588,7 @@ try:
             scheduler.step()
             if False and patience > 3:
                 break
-        else:
+        elif epoch % 10 == 0:
             print('Saving Model')
             with open(model_name, 'wb') as f:
                 torch.save(model, f)

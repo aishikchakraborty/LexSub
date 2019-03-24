@@ -1,0 +1,1 @@
+from extrinsic_tasks.dataset_readers.lex_rel_classification_dataset_reader import LexicalRelationClassificationDatasetReader

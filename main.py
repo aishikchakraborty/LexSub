@@ -175,6 +175,7 @@ class Dataset(data.TabularDataset):
                 save_iters = True
 
         if load_from_file:
+                print('Loading from file')
                 dataset = cls.splits(field_dict, dataset_dir, train_file, valid_file, test_file, **kwargs)
                 if save_iters:
                     torch.save([d.examples for d in dataset], examples_path)
@@ -217,7 +218,7 @@ if args.data_version:
 
 
 lex_rels = '_'.join(args.lex_rels) if len(args.lex_rels) > 0 else 'vanilla'
-summary_filename = 'logs/logs_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance
+summary_filename = os.path.join(args.save, 'logs_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance)
 
 os.system('rm -rf ' + summary_filename)
 os.mkdir(summary_filename)
@@ -230,7 +231,7 @@ train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir
 # train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
 #                                                              device=device, root=args.data)
 # vocab = train_iter.dataset.fields['text'].vocab
-# train_iter = [x for x in train_iter]
+train_iter = [x for x in train_iter]
 # valid_iter = [x for x in valid_iter]
 # test_iter = [x for x in test_iter]
 
@@ -322,13 +323,12 @@ else:
 criterion = nn.NLLLoss()
 
 optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
-# milestones=[100] if args.optim != 'sgd' else \
-#             ([3,6,7] if args.data == 'wikitext-103' else \
-#                 [10, 15, 25, 35]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
-# print(milestones)
-# scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 3)
-# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 15)
+milestones=[100] if args.optim != 'sgd' else \
+            ([3,6,7] if args.data == 'wikitext-103' else \
+                [10, 15, 25, 35]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
+print(milestones)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 3)
 
 print('Lex Rel List: {}'.format(args.lex_rels))
 def evaluate(data_source):
@@ -430,6 +430,9 @@ def train(epoch):
     start_time = time.time()
     if args.model != 'retro':
         hidden = model.init_hidden(args.batch_size)
+
+    if args.model != 'rnn':
+        shuffle(train_iter)
 
     for idx, batch in enumerate(train_iter):
         data, targets = batch.text, batch.target
@@ -585,7 +588,7 @@ try:
             scheduler.step()
             if False and patience > 3:
                 break
-        else:
+        elif epoch % 10 == 0:
             print('Saving Model')
             with open(model_name, 'wb') as f:
                 torch.save(model, f)

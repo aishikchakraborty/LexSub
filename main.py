@@ -97,7 +97,10 @@ parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
 parser.add_argument('--extend_wn', action='store_true', help='This flag allows the final embedding to be concatenation of wn embedding and lm embedding.')
 parser.add_argument('--nce', action='store_true', help='Use nce for training.')
 parser.add_argument('--nce_loss', type=str, default='nce', help='Type of nce to use.')
-parser.add_argument('--num_neg_sample_subspace', type=int, default=10, help='Number of negative samples to use while training lexical subspace.')
+parser.add_argument('--num_neg_sample_subspace', type=int, default=10,
+                    help='Number of negative samples to use while training lexical subspace.')
+parser.add_argument('--max_vocab_size', type=int, default=None,
+                    help='Vocab size to use for the dataset.')
 args = parser.parse_args()
 
 print(args)
@@ -187,10 +190,11 @@ class Dataset(data.TabularDataset):
 
         if args.model == 'retro':
             vec = torchtext.vocab.Vectors('glove.6B.300d.txt', cache='data/glove')
-            TEXT_FIELD.build_vocab(train, vectors=vec)
+            TEXT_FIELD.build_vocab(train, vectors=vec, max_size=args.max_vocab_size)
         else:
-            TEXT_FIELD.build_vocab(train)
+            TEXT_FIELD.build_vocab(train, max_size=args.max_vocab_size)
         WORDNET_TEXT_FIELD.vocab = TEXT_FIELD.vocab
+
         if args.model == 'rnn':
             train_iter, valid_iter, test_iter = data.Iterator.splits((train, valid, test),
                                                     batch_size=batch_size, device=device,

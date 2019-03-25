@@ -139,6 +139,14 @@ if [ -n "${nlayers}" ]; then
     cmd+=" --nlayers ${nlayers} "
 fi
 
+if [ -n "${vocab_size}" ]; then
+    cmd+=" --max_vocab_size ${vocab_size} "
+fi
+
+if [ -n "${rnn_type}" ]; then
+    cmd+=" --rnn_type ${rnn_type} "
+fi
+
 if [ ${wn_ratio} ]; then
     cmd+=" --wn_ratio ${wn_ratio}"
 fi

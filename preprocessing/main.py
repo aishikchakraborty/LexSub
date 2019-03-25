@@ -175,6 +175,7 @@ def get_lexical_relations(word, word2idx):
 
     return synonyms, antonyms, hypernyms, hyponyms, meronyms, holonyms
 
+global_syn2rel = {}
 global_synonyms = set([])
 global_antonyms = set([])
 global_hypernyms = set([])
@@ -191,17 +192,40 @@ def get_lexical_relations_seq(text):
     holonyms = set([])
     preprocessed_text = preprocessing(text)
 
-    # use simple nltk pos tagger for now
-    pos_tags = nltk.pos_tag(preprocessed_text)
-    for w, p in zip(preprocessed_text, pos_tags):
-        # consider only adjectives for synonyms and antonyms
-        p = get_wordnet_pos(p[1])
-        if p is None:
-            continue
+    for w in preprocessed_text:
+        if w not in global_syn2rel:
+            # use simple nltk pos tagger for now
+            pos_tags = nltk.pos_tag(w)
+            # consider only adjectives for synonyms and antonyms
+            p = get_wordnet_pos(pos_tags[-1][1])
+            global_syn2rel[w] = { 'pos': p}
 
-        word_syn, word_ant, \
-            word_hyp, word_hypo, \
-            word_mer, word_hol = get_lexical_relations(w, word2idx)
+            if p is None:
+                continue
+
+            word_syn, word_ant, \
+                word_hyp, word_hypo, \
+                word_mer, word_hol = get_lexical_relations(w, word2idx)
+
+            global_syn2rel[w].update({
+                    'synonyms': word_syn,
+                    'antonyms': word_ant,
+                    'hypernyms': word_hyp,
+                    'hyponyms': word_hypo,
+                    'meronyms': word_mer,
+                    'holonyms': word_hol
+                    })
+
+        else:
+            if global_syn2rel[w]['pos'] is None:
+                continue
+
+            word_syn = global_syn2rel[w]['synonyms']
+            word_ant = global_syn2rel[w]['antonyms']
+            word_hyp = global_syn2rel[w]['hypernyms']
+            word_hypo = global_syn2rel[w]['hyponyms']
+            word_mer = global_syn2rel[w]['meronyms']
+            word_hol = global_syn2rel[w]['holonyms']
 
         synonyms.update(word_syn)
         antonyms.update(word_ant)
@@ -304,6 +328,7 @@ def create_rnn_corpus(in_path, out_path):
         batched_input.append(tokens[batch:batch + num_batches])
 
     with codecs.open(out_path, 'w', encoding="utf-8") as out_file:
+        outputs = []
         for i in range(0, num_batches, args.bptt):
             seq_len = min(args.bptt, num_batches - i - 1)
 
@@ -324,15 +349,19 @@ def create_rnn_corpus(in_path, out_path):
                 output = {'text': text_str,
                           'target': target_str}
                 output.update(get_lexical_relations_seq(text))
+                outputs.append(output)
 
-                out_file.write(str(json.dumps(output)) + '\n')
-                out_file.flush()
+            print('{}/{}\r'.format(i, num_batches), end='\r')
+
+        for output in outputs:
+            out_file.write(str(json.dumps(output)) + '\n')
 
 def create_glove_corpus(in_path, out_path):
     tokens = get_tokens_from_file(in_path, add_eos=False)
 
     with codecs.open(out_path, 'w', encoding="utf-8") as out_file:
-        for token in tokens:
+        outputs = []
+        for i, token in enumerate(tokens):
 
             if not token:
                 continue
@@ -340,9 +369,11 @@ def create_glove_corpus(in_path, out_path):
             output = get_lexical_relations_seq([token])
             output['text'] = token
             output['target'] = token
+            outputs.append(output)
+            print('{0}\r'.format(i), end='\r')
 
+        for output in outputs:
             out_file.write(str(json.dumps(output)) + '\n')
-            out_file.flush()
 
 def create_cbow_corpus(in_path, out_path):
     tokens = get_tokens_from_file(in_path, add_eos=False)

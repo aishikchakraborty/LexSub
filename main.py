@@ -322,7 +322,7 @@ else:
 
 criterion = nn.NLLLoss()
 
-optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr, weight_decay=0.001)
+optimizer = torch.optim.Adagrad(model.parameters(), lr=lr) if args.optim == 'adagrad' else torch.optim.SGD(model.parameters(), lr=lr)
 milestones=[100] if args.optim != 'sgd' else \
             ([3,6,7] if args.data == 'wikitext-103' else \
                 [10, 15, 25, 35]  if args.data == 'wikitext-2' else [2, 5, 10, 25])
@@ -430,7 +430,7 @@ def train(epoch):
     start_time = time.time()
     if args.model != 'retro':
         hidden = model.init_hidden(args.batch_size)
-    
+
     if args.model != 'rnn':
         shuffle(train_iter)
 

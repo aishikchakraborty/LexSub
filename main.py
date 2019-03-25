@@ -608,7 +608,7 @@ with open(model_name, 'rb') as f:
     model = torch.load(f)
     # after load the rnn params are not a continuous chunk of memory
     # this makes them a continuous chunk, and will speed up forward pass
-    if args.model=='rnn':
+    if args.model=='rnn' and args.rnn_type != 'QRNN':
         model.lm.rnn.flatten_parameters()
 
 

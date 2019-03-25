@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import torch
 
 from nce import IndexLinear
+from torchqrnn import QRNN
 
 class RNNWordnetModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
@@ -127,6 +128,8 @@ class RNNModel(nn.Module):
         self.adaptive = adaptive
         if rnn_type in ['LSTM', 'GRU']:
             self.rnn = getattr(nn, rnn_type)(lm_dim, nhid, nlayers, dropout=dropout)
+        elif rnn_type == 'QRNN':
+            self.rnn = QRNN(lm_dim, nhid, nlayers, dropout=dropout)
         else:
             try:
                 nonlinearity = {'RNN_TANH': 'tanh', 'RNN_RELU': 'relu'}[rnn_type]

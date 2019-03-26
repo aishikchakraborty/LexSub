@@ -16,13 +16,16 @@ fi
 
 if [ "${data}" == "wikitext103" ]; then
     export epoch="${epoch:=10}"
-    export bptt="${bptt:=50}"
+    export bptt="${bptt:=140}"
+    export bsize="${bsize:=30}"
     export data="wikitext-103"
     export nhid="${nhid:=1200}"
     export adaptive=true
-    # export nce=true
-    export time="${time:=1-10:00:00}"
-    export mem="${mem:=257000M}"
+    export time="${time:=1-00:00:00}"
+    export mem="${mem:=50000M}"
+    export rnn_type="${rnn_type:=QRNN}"
+    export vocab_size="${vocab_size:=100000}"
+    export data_version=${data_version:=2}
 fi
 
 if [ "${mdl}" == "retro" ]; then

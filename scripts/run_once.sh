@@ -7,29 +7,44 @@ export 	LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 export mdl=${mdl:="rnn"}
 
 if [ "${data}" == "wikitext2" ]; then
-    export epoch="${epoch:=40}"
-    export bptt="${bptt:=70}"
-    export bsize="${bsize:=40}"
     export data="wikitext-2"
     export nhid="${nhid:=300}"
-    export rnn_type="${rnn_type:=QRNN}"
-    export data_version="${data_version:=2}"
-    time="${time:=3:00:00}"
     export mem="${mem:=30000}"
+
+    if [ "${mdl}" == "skipgram" ]; then
+        time="${time:=1-00:00:00}"
+        export epoch="${epoch:=40}"
+    elif [ "${mdl}" == "rnn" ]; then
+        export epoch="${epoch:=40}"
+        export bptt="${bptt:=70}"
+        export bsize="${bsize:=40}"
+        export data="wikitext-2"
+        export rnn_type="${rnn_type:=QRNN}"
+        export data_version="${data_version:=2}"
+        time="${time:=3:00:00}"
+    fi
+
 fi
 
 if [ "${data}" == "wikitext103" ]; then
-    export epoch="${epoch:=10}"
-    export bptt="${bptt:=140}"
-    export bsize="${bsize:=30}"
     export data="wikitext-103"
     export nhid="${nhid:=1200}"
     export adaptive=true
-    export time="${time:=1-00:00:00}"
-    export mem="${mem:=50000M}"
-    export rnn_type="${rnn_type:=QRNN}"
-    export vocab_size="${vocab_size:=100000}"
-    export data_version=${data_version:=2}
+
+    if [ "${mdl}" == "skipgram" ]; then
+        export time="${time:=2-00:00:00}"
+        export epoch="${epoch:=10}"
+        export mem="${mem:=257000M}"
+    elif [ "${mdl}" == "rnn" ]; then
+        export epoch="${epoch:=10}"
+        export bptt="${bptt:=140}"
+        export bsize="${bsize:=30}"
+        export mem="${mem:=50000M}"
+        export rnn_type="${rnn_type:=QRNN}"
+        export vocab_size="${vocab_size:=100000}"
+        export data_version=${data_version:=2}
+        export time="${time:=1-00:00:00}"
+    fi
 fi
 
 if [ "${mdl}" == "retro" ]; then
@@ -89,7 +104,7 @@ export mode="${mode:=slurm}"
 
 mkdir -p ${output_dir}
 
-if [ "${mode}" == "slurm" -a "${data}" == "wikitext-103" ]; then
+if [ "${mode}" == "slurm" ] && [ "${data}" == "wikitext-103" ] && [ "${mdl}" == "skipgram" ]; then
     sbatch -J "${job_name}" -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --nodes=1 --gres=gpu:1 --mem 0 scripts/launcher_wn.sh
 elif [ "${mode}" == "slurm" ]; then
     sbatch -J "${job_name}" -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --mem ${mem} --gres=gpu:1 scripts/launcher_wn.sh

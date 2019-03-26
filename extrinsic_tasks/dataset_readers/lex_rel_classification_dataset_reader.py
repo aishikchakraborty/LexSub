@@ -14,7 +14,7 @@ from allennlp.data.fields import Field, LabelField, TextField, MetadataField
 from allennlp.data.instance import Instance
 from allennlp.data.tokenizers import Tokenizer, WordTokenizer
 from allennlp.data.token_indexers import TokenIndexer, SingleIdTokenIndexer
-from allennlp.data.tokenizers.word_splitter import SimpleWordSplitter
+from allennlp.data.tokenizers.word_splitter import JustSpacesWordSplitter
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -49,7 +49,7 @@ class LexicalRelationClassificationDatasetReader(DatasetReader):
     def __init__(self,
                  tokenizer: Tokenizer = None,
                  token_indexers: Dict[str, TokenIndexer] = None) -> None:
-        self._tokenizer = WordTokenizer(word_splitter=SimpleWordSplitter())
+        self._tokenizer = WordTokenizer(word_splitter=JustSpacesWordSplitter())
         self._token_indexers = token_indexers or {"tokens": SingleIdTokenIndexer()}
 
     @overrides
@@ -60,11 +60,8 @@ class LexicalRelationClassificationDatasetReader(DatasetReader):
                 if i == 0:
                     continue
                 row = line.split()
-                label=row[3]
-                if label not in set(['syn', 'ant', 'hyp-1', 'mero']):
-                    row[3] = 'oth'
-                
-                yield self.text_to_instance(word1=row[0], word2=row[1], pos=row[2], label=row[3])
+
+                yield self.text_to_instance(word1=row[0], word2=row[1], pos=None, label=row[2])
 
     @overrides
     def text_to_instance(self, word1: str, word2: str, pos: str = None, label: str = None) -> Instance:  # type: ignore

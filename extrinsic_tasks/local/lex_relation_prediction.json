@@ -2,43 +2,38 @@
   "dataset_reader": {
     "type": "lex_rel_classification"
   },
-  "train_data_path": "extrinsic_tasks/datasets/hyperlex/splits/lexical/hyperlex_training_all_lexical.txt",
-  "validation_data_path": "extrinsic_tasks/datasets/hyperlex/splits/lexical/hyperlex_dev_all_lexical.txt",
-  "test_data_path": "extrinsic_tasks/datasets/hyperlex/splits/lexical/hyperlex_test_all_lexical.txt",
-  // "train_data_path": "extrinsic_tasks/datasets/hyperlex/splits/random/hyperlex_training_all_random.txt",
-  // "validation_data_path": "extrinsic_tasks/datasets/hyperlex/splits/random/hyperlex_dev_all_random.txt",
-  // "test_data_path": "extrinsic_tasks/datasets/hyperlex/splits/random/hyperlex_test_all_random.txt",
+  "train_data_path": "extrinsic_tasks/datasets/lex_rel_train.txt",
+  "validation_data_path": "extrinsic_tasks/datasets/lex_rel_valid.txt",
+  "test_data_path": "extrinsic_tasks/datasets/lex_rel_test.txt",
   "evaluate_on_test": true,
   "model": {
     "type": "lex_rel_classifier",
     "text_field_embedder": {
       "tokens": {
         "type": "embedding",
-        "pretrained_file": "./data/glove/glove.6B.300d.txt",
-        // "pretrained_file": "output/glove_retro_syn_hyp_mer_lower_wn_v2/2019_03_18_17_00/emb_glove_retro_syn_hyp_mer_300_300_100_cosine_wn_v2.txt",
-        // "pretrained_file": "output/glove_retro_syn_lower_wn_v2/2019_03_16_14_37/emb_glove_retro_syn_300_300_100_cosine_wn_v2.txt",
-        "embedding_dim": 300,
+        "pretrained_file": "${emb_filetxt}",
+        "embedding_dim": ${task_emb_size},
         "trainable": false
       }
     },
     "shared_feedforward": {
       "input_dim": 300,
       "num_layers": 1,
-      "hidden_dims": 300,
-      "activations": "linear",
+      "hidden_dims": 1500,
+      "activations": "relu",
       "dropout": 0.2
     },
     "classifier_feedforward_word1": {
-      "input_dim": 300,
+      "input_dim": 1500,
       "num_layers": 1,
-      "hidden_dims": 140,
+      "hidden_dims": 500,
       "activations": "linear",
       "dropout": 0.2
     },
     "classifier_feedforward_word2": {
-      "input_dim": 300,
+      "input_dim": 1500,
       "num_layers": 1,
-      "hidden_dims": 140,
+      "hidden_dims": 500,
       "activations": "linear",
       "dropout": 0.2
     }
@@ -46,10 +41,11 @@
   "iterator": {
     "type": "bucket",
     "sorting_keys": [["word1", "num_tokens"]],
-    "batch_size": 64
+    "batch_size": 1024
   },
   "trainer": {
     "num_epochs": 30,
+    "patience": 3,
     "cuda_device": 0,
     "grad_clipping": 5.0,
     "validation_metric": "+accuracy",

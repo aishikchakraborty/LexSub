@@ -175,7 +175,7 @@ export emb_filetxt=${output_dir}/${emb_filename}.txt
 declare -A task2time
 task2time["ner"]="3:00:00"
 task2time["sst"]="01:00:00"
-task2time["bidaf"]="6:00:00"
+task2time["bidaf"]="3:00:00"
 task2time["decomposable"]="8:00:00"
 
 run_extrinsic_task () {

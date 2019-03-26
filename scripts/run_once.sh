@@ -8,10 +8,13 @@ export mdl=${mdl:="rnn"}
 
 if [ "${data}" == "wikitext2" ]; then
     export epoch="${epoch:=40}"
-    export bptt="${bptt:=35}"
+    export bptt="${bptt:=70}"
+    export bsize="${bsize:=40}"
     export data="wikitext-2"
     export nhid="${nhid:=300}"
-    time="${time:=23:00:00}"
+    export rnn_type="${rnn_type:=QRNN}"
+    export data_version="${data_version:=2}"
+    time="${time:=3:00:00}"
     export mem="${mem:=30000}"
 fi
 

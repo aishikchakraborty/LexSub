@@ -35,6 +35,7 @@ if [ "${mdl}" == "retro" ]; then
     export time="${time:=3:00:00}"
     export mem="${mem:=30000}"
     export data_version=${data_version:=2}
+    export log_interval=${log_interval:=10}
 fi
 
 export lr="${lr:=20}"

@@ -235,7 +235,9 @@ train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir
 # train_iter, valid_iter, test_iter = datasets.WikiText2.iters(batch_size=args.batch_size, bptt_len=args.bptt,
 #                                                              device=device, root=args.data)
 # vocab = train_iter.dataset.fields['text'].vocab
-train_iter = [x for x in train_iter]
+if args.model != 'rnn':
+    train_iter = [x for x in train_iter]
+
 # valid_iter = [x for x in valid_iter]
 # test_iter = [x for x in test_iter]
 

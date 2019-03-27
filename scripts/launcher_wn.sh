@@ -176,6 +176,7 @@ declare -A task2time
 task2time["ner"]="3:00:00"
 task2time["sst"]="01:00:00"
 task2time["bidaf"]="3:00:00"
+task2time["lex_relation_prediction"]="00:03:00"
 task2time["decomposable"]="8:00:00"
 
 run_extrinsic_task () {
@@ -188,7 +189,8 @@ run_extrinsic_task () {
         -e ${output_dir}/${task}_std.out \
         -A ${account} \
         -t "${task2time[$task]}" \
-        scripts/launcher_basic.sh allennlp train ${task_file} -s ${output_dir}/${task}/
+        scripts/launcher_basic.sh allennlp train ${task_file} -s ${output_dir}/${task}/ \
+        --include-package extrinsic_tasks.models --include-package extrinsic_tasks.dataset_readers
 }
 
 if [ ${step} -lt 2 ]; then
@@ -201,7 +203,7 @@ if [ ${step} -lt 2 ]; then
 fi
 
 i=3
-for ext_task in ner sst decomposable bidaf
+for ext_task in ner sst decomposable bidaf lex_relation_prediction
 do
     if [ ${step} -lt ${i} ]; then
         run_extrinsic_task ${ext_task};
@@ -214,7 +216,7 @@ do
     fi
 done
 
-if [ ${step} -lt 7 ]; then
+if [ ${step} -lt 8 ]; then
     cd analogy_tasks;
     python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
     python main.py  --hypernymy --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl > ../${output_dir}/hypernymysuite.json
@@ -228,7 +230,7 @@ if [ ${step} -lt 7 ]; then
 fi
 
 
-if [ ${step} -lt 8 ]; then
+if [ ${step} -lt 9 ]; then
 
     cd analogy_tasks;
     if [ -n "${syn}" ]; then

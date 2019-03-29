@@ -54,6 +54,7 @@
     },
      "initializer": [
       [".*linear_layers.*weight", {"type": "xavier_normal"}],
+      [".*token_embedder_tokens\\._projection.*weight", {"type": "xavier_normal"}]
      ]
    },
   "iterator": {

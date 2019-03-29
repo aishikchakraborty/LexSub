@@ -452,8 +452,13 @@ class GloveEncoderModel(nn.Module):
         return output_dict
 
 class WNModel(nn.Module):
-    def __init__(self, lex_rels, vocab_freq, embedding, emb_dim, wn_dim, pad_idx, wn_offset=0, antonym_margin=1, dist_fn=F.pairwise_distance, fixed=False, random=False, num_neg_samples=10):
+    def __init__(self, lex_rels, vocab_freq, embedding, emb_dim, wn_dim, pad_idx, wn_offset=0, antonym_margin=1, dist_fn=F.pairwise_distance, fixed=False, random=False, num_neg_samples=10, common_vs=False):
         super(WNModel, self).__init__()
+
+        if common_vs:
+            wn_dim = emb_dim
+            fixed=True
+
         self.embedding = embedding
         self.emb_dim = emb_dim
         self.wn_dim = wn_dim
@@ -484,18 +489,20 @@ class WNModel(nn.Module):
             if 'syn' in lex_rels:
                 self.syn_proj.weight.data.zero_()
                 self.syn_proj.weight.data[:,wn_offset:wn_offset+wn_dim] = eye
-                wn_offset += wn_dim
+                if not common_vs:
+                    wn_offset += wn_dim
 
             if 'hyp' in lex_rels:
                 self.hypn_proj.weight.data.zero_()
                 self.hypn_proj.weight.data[:,wn_offset:wn_offset+wn_dim] = eye
-                wn_offset += wn_dim
+                if not common_vs:
+                    wn_offset += wn_dim
 
             if 'mer' in lex_rels:
                 self.mern_proj.weight.data.zero_()
                 self.mern_proj.weight.data[:, wn_offset:wn_offset+wn_dim] = eye
-                wn_offset += wn_dim
-
+                if not common_vs:
+                    wn_offset += wn_dim
 
         if fixed or random:
             if 'syn' in lex_rels:

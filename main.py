@@ -93,6 +93,7 @@ parser.add_argument('--optim', type=str, default='sgd',
 parser.add_argument('--reg', action='store_true', help='Regularize.')
 parser.add_argument('--fixed_wn', action='store_true', help='Fixed WN proj matrices to identity matrix.')
 parser.add_argument('--random_wn', action='store_true', help='Fix random WN proj matrix and not learn it.')
+parser.add_argument('--common_vs', action='store_true', help='Collapse subspaces to original vs for fair comparison with other techniques.')
 parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
 parser.add_argument('--extend_wn', action='store_true', help='This flag allows the final embedding to be concatenation of wn embedding and lm embedding.')
 parser.add_argument('--nce', action='store_true', help='Use nce for training.')
@@ -212,7 +213,7 @@ def dist_fn(x1, x2, dim=1):
     if args.distance == 'cosine':
         return  1 - F.cosine_similarity(x1,x2, dim=dim)
     elif args.distance == 'pairwise':
-        return F.pairwise_distance(x1, x2)
+        return F.pairwise_distance(x1, x2)**2/x1.size(-1)
 
 annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size) if args.model == 'rnn' else \
                     'annotated_{}'.format(args.model)
@@ -287,7 +288,8 @@ elif args.model == 'retro':
                              fixed=args.fixed_wn,
                              random=args.random_wn,
                              dist_fn=dist_fn,
-                             num_neg_samples=args.num_neg_sample_subspace).to(device)
+                             num_neg_samples=args.num_neg_sample_subspace,
+                             common_vs=args.common_vs).to(device)
     model = model.GloveModel(gl_model, wn_model).to(device)
 elif args.model == 'cbow':
     wn_offset = args.emsize if args.extend_wn else 0
@@ -597,7 +599,7 @@ try:
             scheduler.step()
             if False and patience > 3:
                 break
-        elif epoch % 10 == 0:
+        elif (epoch == args.epochs) or (epoch % 10 == 0):
             print('Saving Model')
             with open(model_name, 'wb') as f:
                 torch.save(model, f)

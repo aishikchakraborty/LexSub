@@ -448,7 +448,7 @@ class GloveEncoderModel(nn.Module):
         emb_glove = self.glove_encoder[input]
         emb, emb_glove = torch.squeeze(emb, 0), torch.squeeze(emb_glove, 0)
         output_dict['glove_emb'] = (emb, emb_glove)
-        output_dict['glove_loss'] = torch.mean(F.mse_loss(emb, emb_glove))
+        output_dict['glove_loss'] = torch.mean(self.dist_fn(emb, emb_glove))
         return output_dict
 
 class WNModel(nn.Module):

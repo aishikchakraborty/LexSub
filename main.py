@@ -102,6 +102,10 @@ parser.add_argument('--num_neg_sample_subspace', type=int, default=10,
                     help='Number of negative samples to use while training lexical subspace.')
 parser.add_argument('--max_vocab_size', type=int, default=None,
                     help='Vocab size to use for the dataset.')
+parser.add_argument('--retro_emb_data_dir', type=str, default='data/glove',
+                    help='Number of negative samples to use while training lexical subspace.')
+parser.add_argument('--retro_emb_file', type=str, default='glove.6B.300d.txt',
+                    help='Number of negative samples to use while training lexical subspace.')
 args = parser.parse_args()
 
 print(args)
@@ -138,7 +142,8 @@ class Dataset(data.TabularDataset):
 
     @classmethod
     def iters(cls, dataset_dir=None, train_file=None, valid_file=None, test_file=None,
-                device=-1, batch_size=args.batch_size, load_from_file=False, version=1, **kwargs):
+                device=-1, batch_size=args.batch_size, load_from_file=False, version=1,
+                retro_emb_data_dir='data/glove', retro_emb_file='glove.6B.300d.txt', **kwargs):
 
         def preprocessing(prop_list):
             if len(prop_list) == 0:
@@ -190,7 +195,7 @@ class Dataset(data.TabularDataset):
         train, valid, test = dataset
 
         if args.model == 'retro':
-            vec = torchtext.vocab.Vectors('glove.6B.300d.txt', cache='data/glove')
+            vec = torchtext.vocab.Vectors(retro_emb_file, cache=retro_emb_data_dir)
             TEXT_FIELD.build_vocab(train, vectors=vec, max_size=args.max_vocab_size)
         else:
             TEXT_FIELD.build_vocab(train, max_size=args.max_vocab_size)
@@ -215,6 +220,8 @@ def dist_fn(x1, x2, dim=1):
     elif args.distance == 'pairwise':
         return F.pairwise_distance(x1, x2)**2/x1.size(-1)
 
+data_dir = './data/' + args.data
+
 annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size) if args.model == 'rnn' else \
                     'annotated_{}'.format(args.model)
 
@@ -229,7 +236,7 @@ os.system('rm -rf ' + summary_filename)
 os.mkdir(summary_filename)
 writer = SummaryWriter(summary_filename)
 
-train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
+train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join(data_dir, annotated_data_dir), device=device, retro_emb_data_dir=args.retro_emb_data_dir, retro_emb_file=args.retro_emb_file)
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.

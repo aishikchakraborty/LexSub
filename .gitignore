@@ -1,0 +1,14 @@
+*.pkl
+*.out
+*/slurm-*
+*.txt
+*.pt
+logs/
+data/*
+extrinsic_tasks/datasets/*
+__pycache__/
+*~
+lm_wn_*_machine_assignment*.txt
+output*/
+core*
+*.pyc

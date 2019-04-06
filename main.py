@@ -84,7 +84,11 @@ parser.add_argument('--onnx-export', type=str, default='',
                     help='path to export the final model in onnx format')
 parser.add_argument('--adaptive', action='store_true',
                     help='Use adaptive softmax. This speeds up computation.')
-parser.add_argument('--wn_ratio', type=float, default=0.1,
+parser.add_argument('--syn_ratio', type=float, default=0.1,
+                    help='dropout applied to layers (0 = no dropout)')
+parser.add_argument('--hyp_ratio', type=float, default=0.1,
+                    help='dropout applied to layers (0 = no dropout)')
+parser.add_argument('--mer_ratio', type=float, default=0.1,
                     help='dropout applied to layers (0 = no dropout)')
 parser.add_argument('--distance', type=str, default='cosine',
                     help='Type of distance to use. Options are [pairwise, cosine]')
@@ -93,7 +97,6 @@ parser.add_argument('--optim', type=str, default='sgd',
 parser.add_argument('--reg', action='store_true', help='Regularize.')
 parser.add_argument('--fixed_wn', action='store_true', help='Fixed WN proj matrices to identity matrix.')
 parser.add_argument('--random_wn', action='store_true', help='Fix random WN proj matrix and not learn it.')
-parser.add_argument('--common_vs', action='store_true', help='Collapse subspaces to original vs for fair comparison with other techniques.')
 parser.add_argument('--lower', action='store_true', help='Lowercase for data.')
 parser.add_argument('--extend_wn', action='store_true', help='This flag allows the final embedding to be concatenation of wn embedding and lm embedding.')
 parser.add_argument('--nce', action='store_true', help='Use nce for training.')
@@ -102,10 +105,6 @@ parser.add_argument('--num_neg_sample_subspace', type=int, default=10,
                     help='Number of negative samples to use while training lexical subspace.')
 parser.add_argument('--max_vocab_size', type=int, default=None,
                     help='Vocab size to use for the dataset.')
-parser.add_argument('--retro_emb_data_dir', type=str, default='data/glove',
-                    help='Number of negative samples to use while training lexical subspace.')
-parser.add_argument('--retro_emb_file', type=str, default='glove.6B.300d.txt',
-                    help='Number of negative samples to use while training lexical subspace.')
 args = parser.parse_args()
 
 print(args)
@@ -142,8 +141,7 @@ class Dataset(data.TabularDataset):
 
     @classmethod
     def iters(cls, dataset_dir=None, train_file=None, valid_file=None, test_file=None,
-                device=-1, batch_size=args.batch_size, load_from_file=False, version=1,
-                retro_emb_data_dir='data/glove', retro_emb_file='glove.6B.300d.txt', **kwargs):
+                device=-1, batch_size=args.batch_size, load_from_file=False, version=1, **kwargs):
 
         def preprocessing(prop_list):
             if len(prop_list) == 0:
@@ -195,7 +193,7 @@ class Dataset(data.TabularDataset):
         train, valid, test = dataset
 
         if args.model == 'retro':
-            vec = torchtext.vocab.Vectors(retro_emb_file, cache=retro_emb_data_dir)
+            vec = torchtext.vocab.Vectors('glove.6B.300d.txt', cache='data/glove')
             TEXT_FIELD.build_vocab(train, vectors=vec, max_size=args.max_vocab_size)
         else:
             TEXT_FIELD.build_vocab(train, max_size=args.max_vocab_size)
@@ -218,9 +216,7 @@ def dist_fn(x1, x2, dim=1):
     if args.distance == 'cosine':
         return  1 - F.cosine_similarity(x1,x2, dim=dim)
     elif args.distance == 'pairwise':
-        return F.pairwise_distance(x1, x2)**2/x1.size(-1)
-
-data_dir = './data/' + args.data
+        return F.pairwise_distance(x1, x2)
 
 annotated_data_dir = args.annotated_dir or 'annotated_{}_{}_{}'.format(args.model, args.bptt, args.batch_size) if args.model == 'rnn' else \
                     'annotated_{}'.format(args.model)
@@ -236,7 +232,7 @@ os.system('rm -rf ' + summary_filename)
 os.mkdir(summary_filename)
 writer = SummaryWriter(summary_filename)
 
-train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join(data_dir, annotated_data_dir), device=device, retro_emb_data_dir=args.retro_emb_data_dir, retro_emb_file=args.retro_emb_file)
+train_iter, valid_iter, test_iter, vocab, pretrained = Dataset.iters(dataset_dir=os.path.join('./data', args.data, annotated_data_dir), device=device)
 
 # This is the default WikiText2 iterator from TorchText.
 # Using this to compare our iterator. Will delete later.
@@ -295,8 +291,7 @@ elif args.model == 'retro':
                              fixed=args.fixed_wn,
                              random=args.random_wn,
                              dist_fn=dist_fn,
-                             num_neg_samples=args.num_neg_sample_subspace,
-                             common_vs=args.common_vs).to(device)
+                             num_neg_samples=args.num_neg_sample_subspace).to(device)
     model = model.GloveModel(gl_model, wn_model).to(device)
 elif args.model == 'cbow':
     wn_offset = args.emsize if args.extend_wn else 0
@@ -462,7 +457,9 @@ def train(epoch):
         meronyms = torch.stack((meronyms_a, meronyms_b), dim=2).view(-1, 2)
 
         optimizer.zero_grad()
-        wn_ratio = args.wn_ratio
+        syn_ratio = args.syn_ratio
+        hyp_ratio = args.hyp_ratio
+        mer_ratio = args.mer_ratio
 
         if args.model == 'retro':
             output_dict = model(data, synonyms, antonyms, hypernyms, meronyms)
@@ -496,7 +493,7 @@ def train(epoch):
             loss_ant = output_dict.get('loss_ant',
                                         torch.sum(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)) * ant_mask)/ant_len)
 
-            total_loss += wn_ratio * (loss_syn + loss_ant)
+            total_loss += syn_ratio * (loss_syn + loss_ant)
             total_loss_syn += loss_syn.item()
             total_loss_ant += loss_ant.item()
 
@@ -509,7 +506,7 @@ def train(epoch):
                 hyp_len = torch.sum(hyp_mask)
                 loss_hyp = torch.sum(dist_fn(emb_hyp1, emb_hyp2) * hyp_mask)/hyp_len
 
-            total_loss += wn_ratio * loss_hyp
+            total_loss += hyp_ratio * loss_hyp
             total_loss_hyp += loss_hyp.item()
 
         if 'mer' in args.lex_rels:
@@ -521,7 +518,7 @@ def train(epoch):
                 mer_len = torch.sum(mer_mask)
                 loss_mer = torch.sum(dist_fn(emb_mern1, emb_mern2) * mer_mask)/mer_len
 
-            total_loss += wn_ratio * loss_mer
+            total_loss += mer_ratio * loss_mer
             total_loss_mern += loss_mer.item()
 
         if args.reg:
@@ -606,7 +603,7 @@ try:
             scheduler.step()
             if False and patience > 3:
                 break
-        elif (epoch == args.epochs) or (epoch % 10 == 0):
+        elif epoch % 10 == 0:
             print('Saving Model')
             with open(model_name, 'wb') as f:
                 torch.save(model, f)
@@ -618,12 +615,13 @@ except KeyboardInterrupt:
     print('Exiting from training early')
 
 # Load the best saved model.
-with open(model_name, 'rb') as f:
-    model = torch.load(f)
-    # after load the rnn params are not a continuous chunk of memory
-    # this makes them a continuous chunk, and will speed up forward pass
-    if args.model=='rnn' and args.rnn_type != 'QRNN':
-        model.lm.rnn.flatten_parameters()
+if args.model != 'retro':
+    with open(model_name, 'rb') as f:
+        model = torch.load(f)
+        # after load the rnn params are not a continuous chunk of memory
+        # this makes them a continuous chunk, and will speed up forward pass
+        if args.model=='rnn' and args.rnn_type != 'QRNN':
+            model.lm.rnn.flatten_parameters()
 
 
 # Run on test data.

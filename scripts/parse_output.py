@@ -66,11 +66,26 @@ with open('lm_wn_machine_assignments%s.txt' % ('-v2' if version=='v2' else ''), 
                                 ('decomposable', 'test_accuracy'),
                                 ('bidaf', 'best_validation_em')]:
 
+
                 ext_path = os.path.join(path, ext+'/metrics.json')
                 if os.path.exists(ext_path):
                     with open(ext_path) as ext_stdout:
                         obj = json.load(ext_stdout)
                         output[ext] = '%.4f' % float(obj.get(key, '-1'))
+            for ext, key in [('ner', 'best_validation_f1-measure-overall'),
+                                ('sst', 'best_validation_accuracy'),
+                                ('esim', 'best_validation_accuracy'),
+                                ('lex_relation_prediction', 'best_validation_accuracy'),
+                                ('bimpm', 'best_validation_accuracy'),
+                                ('decomposable', 'best_validation_accuracy'),
+                                ('bidaf', 'best_validation_em')]:
+
+
+                ext_path = os.path.join(path, ext+'/metrics.json')
+                if os.path.exists(ext_path):
+                    with open(ext_path) as ext_stdout:
+                        obj = json.load(ext_stdout)
+                        output['val_' + ext] = '%.4f' % float(obj.get(key, '-1'))
 
             for name, prefix in [('hypernymysuite', ''), ('hyp_hypernymysuite', 'hyp_'), ('syn_hypernymysuite', 'syn_'), ('mer_hypernymysuite', 'mer_')]:
                 ext_path = os.path.join(path, '%s.json' % name)
@@ -100,7 +115,7 @@ with open('lm_wn_machine_assignments%s.txt' % ('-v2' if version=='v2' else ''), 
                 'syn_dir_wbless', 'syn_dir_bibless', 'syn_dir_dbless', 'syn_cor_hyperlex', 'syn_siege_bless', 'syn_siege_leds', 'syn_siege_eval', 'syn_siege_weeds', 'syn_siege_shwartz', \
                 'hyp_dir_wbless', 'hyp_dir_bibless', 'hyp_dir_dbless', 'hyp_cor_hyperlex', 'hyp_siege_bless', 'hyp_siege_leds', 'hyp_siege_eval', 'hyp_siege_weeds', 'hyp_siege_shwartz', \
                 'mer_dir_wbless', 'mer_dir_bibless', 'mer_dir_dbless', 'mer_cor_hyperlex', 'mer_siege_bless', 'mer_siege_leds', 'mer_siege_eval', 'mer_siege_weeds', 'mer_siege_shwartz', \
-                'ner', 'sst', 'decomposable', 'bidaf', 'esim', 'bimpm', 'lex_relation_prediction']
+                'ner', 'sst', 'decomposable', 'bidaf', 'esim', 'bimpm', 'lex_relation_prediction', 'val_ner', 'val_sst', 'val_decomposable', 'val_bidaf', 'val_esim', 'val_bimpm', 'val_lex_relation_prediction']
     output_csv.write('%s\n' % ','.join(fields))
     for output in outputs:
         print(output)

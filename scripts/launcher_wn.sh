@@ -11,7 +11,7 @@
 
 set -ex
 echo $(date '+%Y_%m_%d_%H_%M') - $SLURM_JOB_NAME - $SLURM_JOBID - `hostname` - ${output_dir} >> ./lm_wn_machine_assignments-v2.txt
-#source activate lm_wn
+source activate lm_wn
 
 export emb_size="${emb_size:=300}"
 export wnhid="${wnhid:=100}"

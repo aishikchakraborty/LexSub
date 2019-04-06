@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import json
+import numpy as np
 version=sys.argv[1] if len(sys.argv) > 1 else 'v2'
 print(version)
 with open('lm_wn_machine_assignments%s.txt' % ('-v2' if version=='v2' else ''), 'r') as paths, \
@@ -66,26 +67,18 @@ with open('lm_wn_machine_assignments%s.txt' % ('-v2' if version=='v2' else ''), 
                                 ('decomposable', 'test_accuracy'),
                                 ('bidaf', 'best_validation_em')]:
 
+                values = []
+                for ext2, ext_path in [(ext, os.path.join(path, ext + '/metrics.json'))] + [(ext + str(run), os.path.join(path, ext + str(run) + '/metrics.json')) for run in range(6)]:
+                    if os.path.exists(ext_path):
+                        with open(ext_path) as ext_stdout:
+                            obj = json.load(ext_stdout)
+                            value = float(obj.get(key, '-1'))
+                            if value != -1:
+                                values.append(value)
+                            output[ext2] = '%.4f' % value
 
-                ext_path = os.path.join(path, ext+'/metrics.json')
-                if os.path.exists(ext_path):
-                    with open(ext_path) as ext_stdout:
-                        obj = json.load(ext_stdout)
-                        output[ext] = '%.4f' % float(obj.get(key, '-1'))
-            for ext, key in [('ner', 'best_validation_f1-measure-overall'),
-                                ('sst', 'best_validation_accuracy'),
-                                ('esim', 'best_validation_accuracy'),
-                                ('lex_relation_prediction', 'best_validation_accuracy'),
-                                ('bimpm', 'best_validation_accuracy'),
-                                ('decomposable', 'best_validation_accuracy'),
-                                ('bidaf', 'best_validation_em')]:
-
-
-                ext_path = os.path.join(path, ext+'/metrics.json')
-                if os.path.exists(ext_path):
-                    with open(ext_path) as ext_stdout:
-                        obj = json.load(ext_stdout)
-                        output['val_' + ext] = '%.4f' % float(obj.get(key, '-1'))
+                output[ext + '_mean'] = '%.4f' % (np.mean(values) if len(values) else -1)
+                output[ext + '_std'] = '%.4f' % (np.std(values) if len(values) else -1)
 
             for name, prefix in [('hypernymysuite', ''), ('hyp_hypernymysuite', 'hyp_'), ('syn_hypernymysuite', 'syn_'), ('mer_hypernymysuite', 'mer_')]:
                 ext_path = os.path.join(path, '%s.json' % name)
@@ -115,7 +108,12 @@ with open('lm_wn_machine_assignments%s.txt' % ('-v2' if version=='v2' else ''), 
                 'syn_dir_wbless', 'syn_dir_bibless', 'syn_dir_dbless', 'syn_cor_hyperlex', 'syn_siege_bless', 'syn_siege_leds', 'syn_siege_eval', 'syn_siege_weeds', 'syn_siege_shwartz', \
                 'hyp_dir_wbless', 'hyp_dir_bibless', 'hyp_dir_dbless', 'hyp_cor_hyperlex', 'hyp_siege_bless', 'hyp_siege_leds', 'hyp_siege_eval', 'hyp_siege_weeds', 'hyp_siege_shwartz', \
                 'mer_dir_wbless', 'mer_dir_bibless', 'mer_dir_dbless', 'mer_cor_hyperlex', 'mer_siege_bless', 'mer_siege_leds', 'mer_siege_eval', 'mer_siege_weeds', 'mer_siege_shwartz', \
-                'ner', 'sst', 'decomposable', 'bidaf', 'esim', 'bimpm', 'lex_relation_prediction', 'val_ner', 'val_sst', 'val_decomposable', 'val_bidaf', 'val_esim', 'val_bimpm', 'val_lex_relation_prediction']
+                'ner1', 'ner2', 'ner3', 'ner4', 'ner5', 'ner_mean', 'ner_std', \
+                'sst1', 'sst2', 'sst3', 'sst4', 'sst5', 'sst_mean', 'sst_std', \
+                'decomposable1','decomposable2', 'decomposable3', 'decomposable4', 'decomposable5', 'decomposable_mean', 'decomposable_std', \
+                'bidaf1', 'bidaf2', 'bidaf3', 'bidaf4', 'bidaf5', 'bidaf_mean', 'bidaf_std', \
+                'bimpm1', 'bimpm2', 'bimpm3', 'bimpm4', 'bimpm5', 'bimpm_mean', 'bimpm_std', \
+                'lex_relation_prediction1', 'lex_relation_prediction2', 'lex_relation_prediction3', 'lex_relation_prediction4', 'lex_relation_prediction5', 'lex_relation_prediction_mean', 'lex_relation_prediction_std' ]
     output_csv.write('%s\n' % ','.join(fields))
     for output in outputs:
         print(output)

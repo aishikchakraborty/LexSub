@@ -50,7 +50,14 @@ fi
 if [ "${mdl}" == "retro" ]; then
     export epoch="${epoch:=40}"
     export bptt="${bptt:=1}"
-    export data=${data:=glove}
+    if [ "${data}" == "wikitext103" ]; then
+        export data="wikitext-103"
+    elif [ "${data}" == "glove" ]; then
+        export data="glove"
+    else
+        export data=${data:=glove}
+    fi
+
     export bsize=${bsize:=6000}
     export lr=${lr:=2}
     export optim="${optim:=adagrad}"

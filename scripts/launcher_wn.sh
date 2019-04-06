@@ -11,7 +11,7 @@
 
 set -ex
 echo $(date '+%Y_%m_%d_%H_%M') - $SLURM_JOB_NAME - $SLURM_JOBID - `hostname` - ${output_dir} >> ./lm_wn_machine_assignments-v2.txt
-source activate lm_wn
+#source activate lm_wn
 
 export emb_size="${emb_size:=300}"
 export wnhid="${wnhid:=100}"
@@ -24,6 +24,18 @@ cmd="python -u main.py --cuda --save-emb ${output_dir} --save ${output_dir} "
 
 if [ -n "$log_interval" ]; then
    cmd+=" --log-interval ${log_interval} "
+fi
+
+if [ -n "$syn_ratio" ]; then
+   cmd+=" --syn_ratio ${syn_ratio} "
+fi
+
+if [ -n "$hyp_ratio" ]; then
+   cmd+=" --hyp_ratio ${hyp_ratio} "
+fi
+
+if [ -n "$mer_ratio" ]; then
+   cmd+=" --mer_ratio ${mer_ratio} "
 fi
 
 if [ -n "$lr" ]; then

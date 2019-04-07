@@ -48,9 +48,6 @@ class Dataset(object):
     """
 
     def __init__(self, filename, vocabdict, ycolumn="label"):
-        if "<unk>" not in vocabdict:
-            raise ValueError("Reserved word <OOV> must appear in vocabulary.")
-
         table = pd.read_table(filename)
 
         # some things require the part of speech, which may not be explicitly

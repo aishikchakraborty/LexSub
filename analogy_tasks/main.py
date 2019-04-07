@@ -7,6 +7,7 @@ import csv
 import json
 from scipy.stats import spearmanr
 from scipy.stats import pearsonr
+from sklearn.metrics import average_precision_score
 import _pickle as pickle
 
 import hypernymysuite_eval
@@ -36,6 +37,13 @@ def read_text_file(file_path):
         lines = lines.strip().split()
         vocab.append(lines[0])
         emb.append([float(val) for val in lines[1:]])
+    
+    # Counterfitting doesn't have unk token. 
+    # It deletes unk token which we need for similarity and other intrinsic tasks. 
+    if 'unk' not in vocab:
+        vocab.append('unk')
+        emb.append([0] * len(emb[-1]))
+
     vocab = Vocab(vocab)
     print('Finished Reading Embedding File')
     print(np.array(emb).shape)
@@ -54,7 +62,7 @@ class WordSimilarity():
         self.datasets = datasets
 
     def load_vocab(self):
-        self.vocab = pickle.load(open(args.vocab, 'rb'))
+        self.vocab = pickle.load(open(args.vocab, 'rb')).stoi
 
         self.emb1 = pickle.load(open(args.emb, 'rb'))
         if args.emb2:
@@ -85,26 +93,16 @@ class WordSimilarity():
                 w1, w2, sim = row[0], row[1], float(row[2])
                 if i%1000 == 0:
                     print('Processed ' + str(i+1) + ' test examples')
-                try:
-                    w1_ = self.vocab.stoi[w1]
-                    w1 = self.emb1[w1_]
-                    if w1_ == 0:
-                        all_present = False
-                except:
-                    all_present = False
-                    # w1 = self.sem_emb[self.['<unk>']].reshape(-1, 1)
-                try:
-                    w2_ = self.vocab.stoi[w2]
-                    w2 = self.emb2[w2_]
-                    if w2_ == 0:
-                        all_present = False
-                except:
-                    all_present = False
-                    # w2 = self.sem_emb[self.w2idx['<unk>']].reshape(-1, 1)
-                if all_present:
-                    pred_sim.append(self.cossim(w1, w2).item())
-                    gold_sim.append(sim)
-                    total_examples += 1
+
+                w1_ = self.vocab.get(w1, self.vocab['unk'])
+                w1 = self.emb1[w1_]
+
+                w2_ = self.vocab.get(w2, self.vocab['unk'])
+                w2 = self.emb2[w2_]
+
+                pred_sim.append(F.cosine_similarity(w1.view(1, -1), w2.view(1, -1)).item())
+                gold_sim.append(sim)
+                total_examples += 1
 
             print('Spearman: ' + str(spearmanr(gold_sim, pred_sim)[0]))
             print('Pearson: ' + str(pearsonr(gold_sim, pred_sim)[0]))
@@ -187,9 +185,26 @@ class AnalogyExperiment():
             print(float(correct_pred)/float(total_examples))
 
 class RankedNeighbors():
-    def __init__(self, topk=10):
+    def __init__(self, topk=100):
         self.topk=topk
         self.output_filename = args.output_file
+        self.neighbors = {'syn': {}, 'hyp': {}, 'mer': {}}
+
+        for rel,neighbor_file, order in [('syn', '../preprocessing/syn_v2.txt', None),
+                                  ('hyp', '../preprocessing/hyp_v2.txt', None),
+                                  ('mer', '../preprocessing/mer_v2.txt', 'reverse')]:
+            with open(neighbor_file) as f:
+                for line in f:
+                    word1, word2 = line.split()
+                    if order == 'reverse':
+                        word3 = word2
+                        word2 = word1
+                        word1 = word3
+
+                    if word1 not in self.neighbors[rel]:
+                        self.neighbors[rel][word1] = set([])
+
+                    self.neighbors[rel][word1].add(word2)
 
     def load_vocab(self):
         self.vocab = pickle.load(open(args.vocab, 'rb'))
@@ -200,7 +215,9 @@ class RankedNeighbors():
         else:
             self.emb2 = pickle.load(open(args.emb, 'rb'))
 
+
     def dump_neighbors(self):
+        rel_aps={'syn': [], 'hyp': [], 'mer':[]}
         with open(self.output_filename, 'w') as out_file:
             words=set([])
             for d in ['unsup_datasets/simlex999.csv','unsup_datasets/hyperlex.csv']:
@@ -214,6 +231,9 @@ class RankedNeighbors():
 
             words = sorted(list(words))
             for i, x in enumerate(words):
+                if x not in self.vocab.stoi:
+                    continue
+
                 x = x.strip()
                 i = self.vocab.stoi[x]
                 wemb = self.emb1[i].view(1, -1)
@@ -222,9 +242,21 @@ class RankedNeighbors():
                 scores[i] = -float("inf")
 
                 score_topk, topk = torch.topk(scores, k=self.topk)
-                for score, idx in zip(score_topk, topk):
+                for score, idx in list(zip(score_topk, topk))[:10]:
                     neighbors.append('%s(%0.3f)'% (self.vocab.itos[idx], score))
                 out_file.write('%s\t%s\n' % (self.vocab.itos[i], '\t'.join(neighbors)))
+                aps = []
+                for rel in ['syn', 'hyp', 'mer']:
+                    if x in self.neighbors[rel]:
+                        y_true=[self.vocab.itos[j] in self.neighbors[rel].get(x, set([])) for j in topk]
+                        y_score=score_topk.cpu().numpy()
+                        score=average_precision_score(y_true, y_score)
+                        if np.isnan(score):
+                            score = 0
+                        rel_aps[rel].append(score)
+
+            for rel in ['syn', 'hyp', 'mer']:
+                print('Mean Average Precision *%s* Score: %.4f' %(rel, np.mean(rel_aps[rel])))
 
 class HypernymySuiteModel(object):
     """
@@ -251,8 +283,12 @@ class HypernymySuiteModel(object):
     vocab = {}
 
     def __init__(self):
-        self.vocab = pickle.load(open(args.vocab, 'rb')).stoi
+        self.vocab = None
+        self.emb1 = None
+        self.emb2 = None
 
+    def load_vocab(self):
+        self.vocab = pickle.load(open(args.vocab, 'rb')).stoi
         self.emb1 = pickle.load(open(args.emb, 'rb'))
         if args.emb2:
             self.emb2 = pickle.load(open(args.emb2, 'rb'))
@@ -273,10 +309,11 @@ class HypernymySuiteModel(object):
             float. The score estimating the degree to which hypo is_a hyper.
                 Higher values indicate a stronger degree.
         """
-        w1_ = self.vocab[hypo]
+        w1_ = self.vocab.get(hypo, self.vocab['unk'])
         w1 = self.emb1[w1_]
 
-        w2_ = self.vocab[hyper]
+
+        w2_ = self.vocab.get(hyper, self.vocab['unk'])
         w2 = self.emb2[w2_]
 
         return F.cosine_similarity(w1.view(1, -1), w2.view(1, -1)).item()
@@ -312,7 +349,7 @@ elif args.sim_task:
     # datasets = ['men3k', 'wordsim353_relatedness', 'simlex999', 'simverb3500', 'hyperlex', 'hyperlex-nouns', 'hyperlex_test']
     ae = WordSimilarity(datasets)
     if args.text:
-        ae.vocab = vocab
+        ae.vocab = vocab.stoi
         ae.emb1 = torch.tensor(emb).cuda()
         ae.emb2 = torch.tensor(emb).cuda()
     else:
@@ -322,10 +359,22 @@ elif args.sim_task:
 elif args.hypernymy:
 
     model = HypernymySuiteModel()
+    if args.text:
+        model.vocab = vocab.stoi
+        model.emb1 = torch.tensor(emb).cuda()
+        model.emb2 = torch.tensor(emb).cuda()
+    else:
+        model.load_vocab()
     result = hypernymysuite_eval.all_evaluations(model, args)
-    print(json.dumps(result))
+    with open(args.output_file, 'w') as out_file:
+        out_file.write(json.dumps(result))
 
 elif args.neighbors:
     ae = RankedNeighbors()
-    ae.load_vocab()
+    if args.text:
+        ae.vocab = vocab
+        ae.emb1 = torch.tensor(emb).cuda()
+        ae.emb2 = torch.tensor(emb).cuda()
+    else:
+        ae.load_vocab()
     ae.dump_neighbors()

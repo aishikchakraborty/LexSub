@@ -42,9 +42,9 @@ parser.add_argument('--nhid', type=int, default=300,
                     help='number of hidden units per layer')
 parser.add_argument('--wn_hid', type=int, default=100,
                     help='Dimension of the WN subspace')
-parser.add_argument('--margin', type=int, default=2,
+parser.add_argument('--margin', type=float, default=2,
                     help='define the margin for the max-margin loss')
-parser.add_argument('--n_margin', type=int, default=2,
+parser.add_argument('--n_margin', type=float, default=2,
                     help='define the margin for the negative sampling max-margin loss')
 parser.add_argument('--patience', type=int, default=1,
                     help='How long before you reduce the LR.')

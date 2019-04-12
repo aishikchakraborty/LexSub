@@ -58,7 +58,7 @@ if [ "${mdl}" == "retro" ]; then
         export data=${data:=glove}
     fi
 
-    export bsize=${bsize:=6000}
+    export bsize=${bsize:=5000}
     export lr=${lr:=2}
     export optim="${optim:=adagrad}"
     export time="${time:=3:00:00}"
@@ -93,7 +93,7 @@ if [ -n "$vanilla" ] || [ "$lexs" == "" ]; then
 fi
 
 
-job_name="${data}_${mdl}_${lexs}"
+job_name="${data}_${mdl}_${lexs}_${syn_ratio}_${hyp_ratio}_${mer_ratio}"
 job_name=${job_name}"$([[ $reg ]] && echo _reg || echo '')"
 job_name=${job_name}"$([[ $fixed_wn ]] && echo _fixed || echo '')"
 job_name=${job_name}"$([[ $random_wn ]] && echo _radom || echo '')"
@@ -105,8 +105,8 @@ export output_dir_prefix=${output_dir_prefix:="output"}
 dir="${output_dir_prefix}/${job_name}/""${date_suffix:=$(date '+%Y_%m_%d_%H_%M')}"
 
 export output_dir=${output_dir:=$dir}
-# account="${account:=rpp-bengioy}"
-export account="${account:=rrg-dprecup}"
+export account="${account:=rpp-bengioy}"
+# export account="${account:=rrg-dprecup}"
 export mode="${mode:=slurm}"
 
 mkdir -p ${output_dir}

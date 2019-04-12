@@ -12,3 +12,4 @@ lm_wn_*_machine_assignment*.txt
 output*/
 core*
 *.pyc
+hyperparam_sweep/*

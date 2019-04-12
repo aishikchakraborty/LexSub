@@ -1,10 +1,10 @@
-for syn_ratio in 0.001 0.01 0.1 1
+for syn_ratio in 0.001 0.01 0.1 0
 do
-    for hyp_ratio in 0.001 0.01 0.1 1
+    for hyp_ratio in 0.001 0.01 0.1 0
     do
-        for mer_ratio in 0.001 0.01 0.1 1
+        for mer_ratio in 0.001 0.01 0.1 0
         do
-            syn=True hyp=True mer=true data=glove mdl=retro syn_ratio=${syn_ratio} hyp_ratio=${hyp_ratio} mer_ratio=${mer_ratio} lr=0.5 scripts/run_once.sh
+            syn=True hyp=True mer=True num_ext_runs=1 data=glove mdl=retro syn_ratio=${syn_ratio} hyp_ratio=${hyp_ratio} mer_ratio=${mer_ratio} lr=0.5 scripts/run_once.sh
         done
     done
 done

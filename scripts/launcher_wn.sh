@@ -26,6 +26,11 @@ if [ -n "$log_interval" ]; then
    cmd+=" --log-interval ${log_interval} "
 fi
 
+if [ -n "$n_margin" ]; then
+   cmd+=" --n_margin ${n_margin} "
+fi
+
+
 if [ -n "$syn_ratio" ]; then
    cmd+=" --syn_ratio ${syn_ratio} "
 fi

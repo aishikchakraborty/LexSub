@@ -452,7 +452,7 @@ class GloveEncoderModel(nn.Module):
         return output_dict
 
 class WNModel(nn.Module):
-    def __init__(self, lex_rels, vocab_freq, embedding, emb_dim, wn_dim, pad_idx, wn_offset=0, antonym_margin=1, dist_fn=F.pairwise_distance, fixed=False, random=False, num_neg_samples=10, common_vs=False):
+    def __init__(self, lex_rels, vocab_freq, embedding, emb_dim, wn_dim, pad_idx, wn_offset=0, antonym_margin=1, n_margin=1, dist_fn=F.pairwise_distance, fixed=False, random=False, num_neg_samples=10, common_vs=False):
         super(WNModel, self).__init__()
 
         if common_vs:
@@ -531,7 +531,7 @@ class WNModel(nn.Module):
             nwords = torch.multinomial(self.weights, batch_size * self.n_negs, replacement=True).view(batch_size, -1).cuda()
             emb_syn_neg = self.syn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1)
             output_dict['loss_syn'] = torch.sum((self.dist_fn(emb_syn1, emb_syn2) \
-                                        + F.relu(0.1 - self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2)).mean(1) \
+                                        + F.relu(args.n_margin - self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2)).mean(1) \
                                         + F.relu(self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2) - 1.5).mean(1) \
                                     ) * syn_mask)/max(syn_len, 1)
             output_dict['syn_emb'] = (emb_syn1, emb_syn2)
@@ -556,7 +556,7 @@ class WNModel(nn.Module):
             emb_hyp_neg = self.hypn_rel(self.hypn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1))
 
             output_dict['loss_hyp'] = torch.sum((self.dist_fn(emb_hypn1, emb_hypn2) \
-                                        + 3.0 * F.relu(0.1 - self.dist_fn(emb_hypn2.view(batch_size, 1, -1), emb_hyp_neg, dim=2)).mean(1) \
+                                        + F.relu(args.n_margin - self.dist_fn(emb_hypn2.view(batch_size, 1, -1), emb_hyp_neg, dim=2)).mean(1) \
                                     ) * hyp_mask)/max(hyp_len, 1)
 
             output_dict['hyp_emb'] = (emb_hypn1, emb_hypn2)
@@ -573,7 +573,7 @@ class WNModel(nn.Module):
             emb_mer_neg = self.mern_rel(self.mern_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1))
 
             output_dict['loss_mer'] = torch.sum((self.dist_fn(emb_mern1, emb_mern2) \
-                                        + F.relu(0.1 - self.dist_fn(emb_mern2.view(batch_size, 1, -1), emb_mer_neg, dim=2)).mean(1) \
+                                        + F.relu(args.n_margin - self.dist_fn(emb_mern2.view(batch_size, 1, -1), emb_mer_neg, dim=2)).mean(1) \
                                     )* mer_mask)/max(mer_len, 1)
             output_dict['mer_emb'] = (emb_mern1, emb_mern2)
 

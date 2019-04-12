@@ -93,7 +93,7 @@ if [ -n "$vanilla" ] || [ "$lexs" == "" ]; then
 fi
 
 
-job_name="${data}_${mdl}_${lexs}_${syn_ratio}_${hyp_ratio}_${mer_ratio}"
+job_name="${data}_${mdl}_${lexs}_${syn_ratio}_${hyp_ratio}_${mer_ratio}_${n_margin}"
 job_name=${job_name}"$([[ $reg ]] && echo _reg || echo '')"
 job_name=${job_name}"$([[ $fixed_wn ]] && echo _fixed || echo '')"
 job_name=${job_name}"$([[ $random_wn ]] && echo _radom || echo '')"

@@ -44,6 +44,8 @@ parser.add_argument('--wn_hid', type=int, default=100,
                     help='Dimension of the WN subspace')
 parser.add_argument('--margin', type=int, default=2,
                     help='define the margin for the max-margin loss')
+parser.add_argument('--n_margin', type=int, default=2,
+                    help='define the margin for the negative sampling max-margin loss')
 parser.add_argument('--patience', type=int, default=1,
                     help='How long before you reduce the LR.')
 parser.add_argument('--nlayers', type=int, default=2,
@@ -278,6 +280,7 @@ if args.model == 'rnn':
     wn_model = model.WNModel(args.lex_rels, idx2freq, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
+                             n_margin=args.n_margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn,
                              dist_fn=dist_fn,
@@ -288,6 +291,7 @@ elif args.model == 'retro':
     wn_model = model.WNModel(args.lex_rels, idx2freq, gl_model.encoder, args.emsize, args.wn_hid, pad_idx,
                              wn_offset=0,
                              antonym_margin=args.margin,
+                             n_margin=args.n_margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn,
                              dist_fn=dist_fn,
@@ -303,6 +307,7 @@ elif args.model == 'cbow':
     wn_model = model.WNModel(args.lex_rels, idx2freq, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
+                             n_margin=args.n_margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn,
                              dist_fn=dist_fn,
@@ -319,6 +324,7 @@ elif args.model == 'skipgram':
     wn_model = model.WNModel(args.lex_rels, idx2freq, lm_model.encoder, em_dim, args.wn_hid, pad_idx,
                              wn_offset=wn_offset,
                              antonym_margin=args.margin,
+                             n_margin=args.n_margin,
                              fixed=args.fixed_wn,
                              random=args.random_wn,
                              dist_fn=dist_fn,

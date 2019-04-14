@@ -15,6 +15,7 @@ import glob
 from collections import Counter
 
 stopwords = nltk.corpus.stopwords.words('english')
+random.seed(1234)
 
 parser = argparse.ArgumentParser(description='Preprocessing for finding synonym/antonym relations')
 parser.add_argument('--data', type=str, default='../data/glove',

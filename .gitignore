@@ -14,3 +14,4 @@ core*
 *.pyc
 hyperparam_sweep/*
 SentEval/*
+hyperparam_2/*

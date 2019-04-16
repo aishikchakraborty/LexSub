@@ -6,6 +6,11 @@ export 	LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
 export mdl=${mdl:="rnn"}
 
+export syn_ratio=${syn_ratio:=0.1}
+export hyp_ratio=${hyp_ratio:=0.1}
+export mer_ratio=${mer_ratio:=0.1}
+export n_margin=${n_margin:=1}
+
 if [ "${data}" == "wikitext2" ]; then
     export data="wikitext-2"
     export nhid="${nhid:=300}"
@@ -110,6 +115,8 @@ export account="${account:=rpp-bengioy}"
 export mode="${mode:=slurm}"
 
 mkdir -p ${output_dir}
+export output_dir=$(readlink -f "${output_dir}")
+echo ${output_dir}
 
 if [ "${mode}" == "slurm" ] && [ "${data}" == "wikitext-103" ] && [ "${mdl}" == "skipgram" ]; then
     sbatch -J "${job_name}" -A ${account} -t ${time} -e ${output_dir}/std.out -o ${output_dir}/std.out --nodes=1 --gres=gpu:1 --mem 0 scripts/launcher_wn.sh

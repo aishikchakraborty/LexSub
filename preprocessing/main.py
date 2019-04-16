@@ -103,7 +103,6 @@ def get_lexical_relations(word, word2idx):
                 if name in word2idx:
                     antonyms.add(tup)
 
-        # hyp = syn.hypernyms() + syn.instance_hypernyms()
         hyp =  syn.instance_hypernyms()
 
         for h in hyp:
@@ -123,8 +122,6 @@ def get_lexical_relations(word, word2idx):
                     hypernyms.add(tup)
 
         hyp = syn.instance_hyponyms()
-        if min([len(x) for x in syn.hypernym_paths()]) > 5:
-            hyp += syn.hyponyms()
 
         for h in hyp:
             if args.version < 2 and syn.pos() == 'v':
@@ -242,7 +239,7 @@ def get_lexical_relations_seq(text):
         global_hyponyms.update(word_hypo)
         global_meronyms.update(word_mer)
         global_holonyms.update(word_hol)
-
+   
     synonyms = sorted(list(synonyms))
     antonyms = sorted(list(antonyms))
     hypernyms = sorted(list(hypernyms))
@@ -462,7 +459,7 @@ if args.model == 'retro':
            ant.write('%s\t%s\n' % ant_pair)
 
     with open('hyp_v{}.txt'.format(args.version), 'w') as hyp:
-        for hyp_pair in global_hyponyms:
+        for hyp_pair in global_hypernyms:
             hyp.write('%s\t%s\n' % hyp_pair)
 
     with open('mer_v{}.txt'.format(args.version), 'w') as mer:

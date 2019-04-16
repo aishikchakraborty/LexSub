@@ -191,7 +191,7 @@ class RankedNeighbors():
         self.neighbors = {'syn': {}, 'hyp': {}, 'mer': {}}
 
         for rel,neighbor_file, order in [('syn', '../preprocessing/syn_v2.txt', None),
-                                  ('hyp', '../preprocessing/hyp_v2.txt', None),
+                                  ('hyp', '../preprocessing/hyp_v2.txt', 'reverse'),
                                   ('mer', '../preprocessing/mer_v2.txt', 'reverse')]:
             with open(neighbor_file) as f:
                 for line in f:
@@ -254,7 +254,7 @@ class RankedNeighbors():
                         if np.isnan(score):
                             score = 0
                         rel_aps[rel].append(score)
-
+            
             for rel in ['syn', 'hyp', 'mer']:
                 print('Mean Average Precision *%s* Score: %.4f' %(rel, np.mean(rel_aps[rel])))
 

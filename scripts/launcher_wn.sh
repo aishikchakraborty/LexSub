@@ -217,10 +217,10 @@ task2time["bimpm"]="8:00:00"
 
 run_extrinsic_task () {
     task=$1
-    rm -rf ${output_dir}/${task}
     task_file=$(mktemp ${output_dir}/${task}-${emb_filename}.XXXXXX)
     envsubst < ./extrinsic_tasks/local/${task}_template.jsonnet > ${task_file}
     for run in $(seq 1 ${num_ext_runs}); do
+        rm -rf ${output_dir}/${task}${run}
         sbatch -o ${output_dir}/${task}${run}_std.out \
             -J "${task}${run}_${SLURM_JOB_NAME}" \
             -e ${output_dir}/${task}${run}_std.out \
@@ -257,13 +257,13 @@ done
 if [ ${step} -lt 9 ]; then
     cd analogy_tasks;
     if [ -n ${emb_text} ]; then
-        python main.py  --sim-task --text --emb ../${output_dir}/${emb_filename}.txt
-        python main.py  --hypernymy --text --emb ../${output_dir}/${emb_filename}.txt --output_file ../${output_dir}/hypernymysuite.json
-        python main.py  --neighbors --text --emb ../${output_dir}/${emb_filename}.txt --output_file ../${output_dir}/neighbors.txt
+        python main.py  --sim-task --text --emb ${output_dir}/${emb_filename}.txt
+        python main.py  --hypernymy --text --emb ${output_dir}/${emb_filename}.txt --output_file ${output_dir}/hypernymysuite.json
+        python main.py  --neighbors --text --emb ${output_dir}/${emb_filename}.txt --output_file ${output_dir}/neighbors.txt
     else
-        python main.py  --sim-task --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl
-        python main.py  --hypernymy --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl --output_file ../${output_dir}/hypernymysuite.json
-        python main.py  --neighbors --emb ../${output_dir}/${emb_filename}.pkl --vocab ../${output_dir}/vocab_${data}.pkl --output_file ../${output_dir}/neighbors.txt
+        python main.py  --sim-task --emb ${output_dir}/${emb_filename}.pkl --vocab ${output_dir}/vocab_${data}.pkl
+        python main.py  --hypernymy --emb ${output_dir}/${emb_filename}.pkl --vocab ${output_dir}/vocab_${data}.pkl --output_file ${output_dir}/hypernymysuite.json
+        python main.py  --neighbors --emb ${output_dir}/${emb_filename}.pkl --vocab ${output_dir}/vocab_${data}.pkl --output_file ${output_dir}/neighbors.txt
     fi
     step=`expr ${step} + 1`
     cd -;
@@ -278,39 +278,39 @@ if [ ${step} -lt 10 ]; then
 
     cd analogy_tasks;
     if [ -n "${syn}" ]; then
-        emb_syn_filename1="../${output_dir}/emb_syn_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
-        emb_syn_filename2="../${output_dir}/emb_syn_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
+        emb_syn_filename1="${output_dir}/emb_syn_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
+        emb_syn_filename2="${output_dir}/emb_syn_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
         if [ -n "${data_version}" ]; then
             emb_syn_filename1+="_wn_v""${data_version}"
             emb_syn_filename2+="_wn_v""${data_version}"
         fi
-        python main.py --sim-task --emb ${emb_syn_filename1}.pkl --emb2 ${emb_syn_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --prefix syn
-        python main.py --hypernymy --emb ${emb_syn_filename1}.pkl --emb2 ${emb_syn_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --output_file ../${output_dir}/syn_hypernymysuite.json
-        python main.py --neighbors --emb ${emb_syn_filename1}.pkl --emb2 ${emb_syn_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --output_file ../${output_dir}/syn_neighbors.txt
+        python main.py --sim-task --emb ${emb_syn_filename1}.pkl --emb2 ${emb_syn_filename2}.pkl --vocab  ${output_dir}/vocab_${data}.pkl --prefix syn
+        python main.py --hypernymy --emb ${emb_syn_filename1}.pkl --emb2 ${emb_syn_filename2}.pkl --vocab  ${output_dir}/vocab_${data}.pkl --output_file ${output_dir}/syn_hypernymysuite.json
+        python main.py --neighbors --emb ${emb_syn_filename1}.pkl --emb2 ${emb_syn_filename2}.pkl --vocab  ${output_dir}/vocab_${data}.pkl --output_file ${output_dir}/syn_neighbors.txt
     fi
 
     if [ -n "${hyp}" ]; then
-        emb_hyp_filename1="../${output_dir}/emb_hypn_hypernyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
-        emb_hyp_filename2="../${output_dir}/emb_hypn_hyponyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
+        emb_hyp_filename1="${output_dir}/emb_hypn_hypernyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
+        emb_hyp_filename2="${output_dir}/emb_hypn_hyponyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
         if [ -n "${data_version}" ]; then
             emb_hyp_filename1+="_wn_v""${data_version}"
             emb_hyp_filename2+="_wn_v""${data_version}"
         fi
-        python main.py --sim-task --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename1}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --prefix hyp
-        python main.py --hypernymy --emb ${emb_hyp_filename2}.pkl --emb2 ${emb_hyp_filename1}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --output_file ../${output_dir}/hyp_hypernymysuite.json
-        python main.py --neighbors --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --output_file ../${output_dir}/hyp_neighbors.txt
+        python main.py --sim-task --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename1}.pkl --vocab  ${output_dir}/vocab_${data}.pkl --prefix hyp
+        python main.py --hypernymy --emb ${emb_hyp_filename2}.pkl --emb2 ${emb_hyp_filename1}.pkl --vocab  ${output_dir}/vocab_${data}.pkl --output_file ${output_dir}/hyp_hypernymysuite.json
+        python main.py --neighbors --emb ${emb_hyp_filename1}.pkl --emb2 ${emb_hyp_filename2}.pkl --vocab  ${output_dir}/vocab_${data}.pkl --output_file ${output_dir}/hyp_neighbors.txt
     fi
 
     if [ -n "${mer}" ]; then
-        emb_mer_filename1="../${output_dir}/emb_mern_meronyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
-        emb_mer_filename2="../${output_dir}/emb_mern_holonyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
+        emb_mer_filename1="${output_dir}/emb_mern_meronyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
+        emb_mer_filename2="${output_dir}/emb_mern_holonyms_${data}_${mdl}_${lexs}_${emb_size}_${nhid}_${wnhid}_${distance}"
         if [ -n "${data_version}" ]; then
             emb_mer_filename1+="_wn_v""${data_version}"
             emb_mer_filename2+="_wn_v""${data_version}"
         fi
-        python main.py --sim-task --emb ${emb_mer_filename1}.pkl --emb2 ${emb_mer_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --prefix mer
-        python main.py --hypernymy --emb ${emb_mer_filename1}.pkl --emb2 ${emb_mer_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --output_file ../${output_dir}/mer_hypernymysuite.json
-        python main.py --neighbors --emb ${emb_mer_filename1}.pkl --emb2 ${emb_mer_filename2}.pkl --vocab  ../${output_dir}/vocab_${data}.pkl --output_file ../${output_dir}/mer_neighbors.txt
+        python main.py --sim-task --emb ${emb_mer_filename1}.pkl --emb2 ${emb_mer_filename2}.pkl --vocab  ${output_dir}/vocab_${data}.pkl --prefix mer
+        python main.py --hypernymy --emb ${emb_mer_filename1}.pkl --emb2 ${emb_mer_filename2}.pkl --vocab  ${output_dir}/vocab_${data}.pkl --output_file ${output_dir}/mer_hypernymysuite.json
+        python main.py --neighbors --emb ${emb_mer_filename1}.pkl --emb2 ${emb_mer_filename2}.pkl --vocab  ${output_dir}/vocab_${data}.pkl --output_file ${output_dir}/mer_neighbors.txt
     fi
     cd -;
     step=`expr ${step} + 1`

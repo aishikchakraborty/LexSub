@@ -260,6 +260,7 @@ if [ ${step} -lt 9 ]; then
         python main.py  --sim-task --text --emb ${output_dir}/${emb_filename}.txt
         python main.py  --hypernymy --text --emb ${output_dir}/${emb_filename}.txt --output_file ${output_dir}/hypernymysuite.json
         python main.py  --neighbors --text --emb ${output_dir}/${emb_filename}.txt --output_file ${output_dir}/neighbors.txt
+
     else
         python main.py  --sim-task --emb ${output_dir}/${emb_filename}.pkl --vocab ${output_dir}/vocab_${data}.pkl
         python main.py  --hypernymy --emb ${output_dir}/${emb_filename}.pkl --vocab ${output_dir}/vocab_${data}.pkl --output_file ${output_dir}/hypernymysuite.json
@@ -313,6 +314,15 @@ if [ ${step} -lt 10 ]; then
         python main.py --neighbors --emb ${emb_mer_filename1}.pkl --emb2 ${emb_mer_filename2}.pkl --vocab  ${output_dir}/vocab_${data}.pkl --output_file ${output_dir}/mer_neighbors.txt
     fi
     cd -;
+    step=`expr ${step} + 1`
+    if [ ${step} -gt ${step_till} ]; then
+        exit 1;
+    fi
+fi
+
+if [ ${step} -lt 11 ]; then
+    cd analogy_tasks;
+    python compute_mean_shift.py --emb ${output_dir}/${emb_filename}.txt
     step=`expr ${step} + 1`
     if [ ${step} -gt ${step_till} ]; then
         exit 1;

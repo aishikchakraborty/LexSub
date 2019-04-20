@@ -13,5 +13,6 @@ output*/
 core*
 *.pyc
 hyperparam_sweep/*
+hyperparam_sweep_2/*
 SentEval/*
 hyperparam_2/*

@@ -334,6 +334,7 @@ class SkipGramModel(nn.Module):
         self.weights = vocab_freq / vocab_freq.sum()
         self.weights = self.weights.pow(0.75)
         self.weights = self.weights/self.weights.sum()
+        self.weights = self.weights.cuda()
 
 
         # if not proj_lm or lm_dim is None:
@@ -409,7 +410,7 @@ class SkipGramModel(nn.Module):
             context_size = 8
 
         emb_input = self.encoder(input).view(batch_size, emb_dim, -1)
-        nwords = torch.multinomial(self.weights, batch_size * context_size * n_negs, replacement=True).view(batch_size, -1).cuda()
+        nwords = torch.multinomial(self.weights, batch_size * context_size * n_negs, replacement=True).view(batch_size, -1)
         emb_output = self.decoder(targets).view(batch_size, context_size, -1)
         emb_nwords = self.decoder(nwords).view(batch_size, context_size*n_negs, -1).neg()
         # print(emb_input.shape)
@@ -558,7 +559,7 @@ class WNModel(nn.Module):
             emb_hyp_neg = self.hypn_rel(self.hypn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1))
 
             output_dict['loss_hyp'] = torch.sum((self.dist_fn(emb_hypn1, emb_hypn2) \
-                                        + self.neg_wn_ratio * F.relu(self.n_margin - self.dist_fn(emb_hypn2.view(batch_size, 1, -1), emb_hyp_neg, dim=2)).mean(1) \
+                                        + self.neg_wn_ratio * F.relu(1 - self.dist_fn(emb_hypn2.view(batch_size, 1, -1), emb_hyp_neg, dim=2)).mean(1) \
                                     ) * hyp_mask)/max(hyp_len, 1)
 
             output_dict['hyp_emb'] = (emb_hypn1, emb_hypn2)

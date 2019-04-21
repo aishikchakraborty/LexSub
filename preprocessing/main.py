@@ -122,6 +122,8 @@ def get_lexical_relations(word, word2idx):
                     hypernyms.add(tup)
 
         hyp = syn.instance_hyponyms()
+        if min([len(x) for x in syn.hypernym_paths()]) > 5:
+            hyp += syn.hyponyms()
 
         for h in hyp:
             if args.version < 2 and syn.pos() == 'v':

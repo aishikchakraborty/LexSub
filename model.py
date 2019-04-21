@@ -557,7 +557,7 @@ class WNModel(nn.Module):
             emb_hyp_neg = self.hypn_rel(self.hypn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1))
 
             output_dict['loss_hyp'] = torch.sum((self.dist_fn(emb_hypn1, emb_hypn2) \
-                                        + F.relu(self.n_margin - self.dist_fn(emb_hypn2.view(batch_size, 1, -1), emb_hyp_neg, dim=2)).mean(1) \
+                                        + 3.0 * F.relu(self.n_margin - self.dist_fn(emb_hypn2.view(batch_size, 1, -1), emb_hyp_neg, dim=2)).mean(1) \
                                     ) * hyp_mask)/max(hyp_len, 1)
 
             output_dict['hyp_emb'] = (emb_hypn1, emb_hypn2)

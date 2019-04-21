@@ -43,6 +43,10 @@ if [ -n "$mer_ratio" ]; then
    cmd+=" --mer_ratio ${mer_ratio} "
 fi
 
+if [ -n "$neg_wn_ratio" ]; then
+   cmd+=" --neg_wn_ratio ${neg_wn_ratio} "
+fi
+
 if [ -n "$lr" ]; then
     cmd+=" --lr $lr"
 fi
@@ -211,7 +215,7 @@ task2time["ner"]="3:00:00"
 task2time["sst"]="00:30:00"
 task2time["bidaf"]="3:00:00"
 task2time["lex_relation_prediction"]="00:30:00"
-task2time["decomposable"]="8:00:00"
+task2time["decomposable"]="10:00:00"
 task2time["esim"]="8:00:00"
 task2time["bimpm"]="8:00:00"
 
@@ -256,7 +260,7 @@ done
 
 if [ ${step} -lt 9 ]; then
     cd analogy_tasks;
-    if [ -n ${emb_text} ]; then
+    if [ -n "${emb_text}" ]; then
         python main.py  --sim-task --text --emb ${output_dir}/${emb_filename}.txt
         python main.py  --hypernymy --text --emb ${output_dir}/${emb_filename}.txt --output_file ${output_dir}/hypernymysuite.json
         python main.py  --neighbors --text --emb ${output_dir}/${emb_filename}.txt --output_file ${output_dir}/neighbors.txt

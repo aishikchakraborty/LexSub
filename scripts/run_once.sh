@@ -11,6 +11,7 @@ export syn_ratio=${syn_ratio:=0.1}
 export hyp_ratio=${hyp_ratio:=0.1}
 export mer_ratio=${mer_ratio:=0.1}
 export n_margin=${n_margin:=1}
+export neg_wn_ratio=${neg_wn_ratio:=10}
 
 if [ "${data}" == "wikitext2" ]; then
     export data="wikitext-2"
@@ -99,7 +100,7 @@ if [ -n "$vanilla" ] || [ "$lexs" == "" ]; then
 fi
 
 
-job_name="${data}_${mdl}_${lexs}_${syn_ratio}_${hyp_ratio}_${mer_ratio}_${n_margin}"
+job_name="${data}_${mdl}_${lexs}_${syn_ratio}_${hyp_ratio}_${mer_ratio}_${n_margin}_${neg_wn_ratio}"
 job_name=${job_name}"$([[ $reg ]] && echo _reg || echo '')"
 job_name=${job_name}"$([[ $fixed_wn ]] && echo _fixed || echo '')"
 job_name=${job_name}"$([[ $random_wn ]] && echo _radom || echo '')"

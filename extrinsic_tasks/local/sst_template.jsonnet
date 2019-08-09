@@ -3,23 +3,11 @@
     "type": "sst_tokens",
     "use_subtrees": true,
     "granularity": "2-class",
-    "token_indexers": {
-      "tokens": {
-        "type": "single_id",
-        "lowercase_tokens": true
-      }
-    }
   },
   "validation_dataset_reader":{
     "type": "sst_tokens",
     "use_subtrees": false,
     "granularity": "2-class",
-    "token_indexers": {
-      "tokens": {
-        "type": "single_id",
-        "lowercase_tokens": true
-      }
-    }
   },
   "train_data_path": "extrinsic_tasks/datasets/sst/train.txt",
   "validation_data_path": "extrinsic_tasks/datasets/sst/dev.txt",

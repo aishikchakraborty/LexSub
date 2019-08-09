@@ -1,5 +1,5 @@
 #!/bin/bash
-
+source ~/.bashrc
 set -ex
 
 module load cuda

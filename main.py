@@ -468,6 +468,16 @@ def train(epoch):
         hypernyms = torch.stack((hypernyms_a, hypernyms_b), dim=2).view(-1, 2)
         meronyms = torch.stack((meronyms_a, meronyms_b), dim=2).view(-1, 2)
 
+        syn_non_pad_idxs = (1 - (synonyms[:,0] == pad_idx).int()).nonzero().squeeze(1) 
+        ant_non_pad_idxs = (1 - (antonyms[:,0] == pad_idx).int()).nonzero().squeeze(1) 
+        hyp_non_pad_idxs = (1 - (hypernyms[:,0] == pad_idx).int()).nonzero().squeeze(1) 
+        mer_non_pad_idxs = (1 - (meronyms[:,0] == pad_idx).int()).nonzero().squeeze(1) 
+
+        synonyms = synonyms[syn_non_pad_idxs]
+        antonyms = antonyms[ant_non_pad_idxs]
+        hypernyms = hypernyms[hyp_non_pad_idxs]
+        meronyms = meronyms[mer_non_pad_idxs]
+
         optimizer.zero_grad()
         syn_ratio = args.syn_ratio
         hyp_ratio = args.hyp_ratio

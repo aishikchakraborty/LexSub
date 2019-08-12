@@ -523,61 +523,82 @@ class WNModel(nn.Module):
         self.dist_fn = dist_fn
 
     def forward(self, synonyms=None, antonyms=None, hypernyms=None, meronyms=None):
+        def mask(lex_rel):
+            return 1 - (lex_rel[:,0] == self.pad_idx).float()
+            
         output_dict = {}
         if 'syn' in self.lex_rels and synonyms is not None:
+            batch_size = synonyms.size(0)
+            syn_mask = mask(synonyms)
+            syn_len = torch.sum(syn_mask)
+
             emb_syn1 = self.syn_proj(self.embedding(synonyms[:, 0]))
             emb_syn2 = self.syn_proj(self.embedding(synonyms[:, 1]))
-            syn_mask = 1 - (synonyms[:,0] == self.pad_idx).float()
-            syn_len = torch.sum(syn_mask)
-            # output_dict['loss_syn'] = torch.sum(self.dist_fn(emb_syn1, emb_syn2) * syn_mask)/max(syn_len, 1)
-            batch_size = synonyms.size(0)
             nwords = torch.multinomial(self.weights, batch_size * self.n_negs, replacement=True).view(batch_size, -1).cuda()
             emb_syn_neg = self.syn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1)
+
             output_dict['loss_syn'] = torch.sum((self.dist_fn(emb_syn1, emb_syn2) \
                                         + self.neg_wn_ratio * F.relu(self.n_margin - self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2)).mean(1) \
-                                        + self.neg_wn_ratio * F.relu(self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2) - 1.5).mean(1) \
+                                        # + self.neg_wn_ratio * F.relu(self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2) - 1.5).mean(1) \
                                     ) * syn_mask)/max(syn_len, 1)
             output_dict['syn_emb'] = (emb_syn1, emb_syn2)
 
         if 'syn' in self.lex_rels and antonyms is not None:
+            batch_size = antonyms.size(0)
+            ant_mask = mask(antonyms) 
+            ant_len = torch.sum(ant_mask)
+
             emb_ant1 =self.syn_proj(self.embedding(antonyms[:, 0]))
             emb_ant2 = self.syn_proj(self.embedding(antonyms[:, 1]))
-            ant_mask = 1 - (antonyms[:,0] == self.pad_idx).float()
-            ant_len = torch.sum(ant_mask)
-            output_dict['loss_ant'] = torch.sum(F.relu(self.antonym_margin - self.dist_fn(emb_ant1, emb_ant2)) * ant_mask)/max(ant_len, 1)
+
+            # nwords= torch.multinomial(self.weights, batch_size * self.n_negs, replacement=True).view(batch_size, -1).cuda()
+            # emb_ant_neg = self.syn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1)
+
+            output_dict['loss_ant'] = torch.sum(F.relu(self.antonym_margin - self.dist_fn(emb_ant1, emb_ant2)) \
+                                        # + self.neg_wn_ratio * F.relu(self.dist_fn(emb_ant1.view(batch_size, 1, -1), emb_ant_neg, dim=2) - 1.0).mean(1) \
+                                         * ant_mask )/max(ant_len, 1)
             output_dict['ant_emb'] = (emb_ant1, emb_ant2)
 
         if 'hyp' in self.lex_rels and hypernyms is not None:
+            batch_size = hypernyms.size(0)
+            hyp_mask = mask(hypernyms) 
+            hyp_len = torch.sum(hyp_mask)
+
             emb_hypn1 = self.hypn_proj(self.embedding(hypernyms[:, 0]))
             emb_hypn2 = self.hypn_proj(self.embedding(hypernyms[:, 1]))
-            emb_hypn1 = self.hypn_rel(emb_hypn1)
-            hyp_mask = 1 - (hypernyms[:,0] == self.pad_idx).float()
-            hyp_len = torch.sum(hyp_mask)
-            # output_dict['loss_hyp'] = torch.sum(self.dist_fn(emb_hypn1, emb_hypn2) * hyp_mask)/max(hyp_len, 1) + 0.000* (torch.norm(self.hypn_rel.weight) - 1)**2
-            batch_size = hypernyms.size(0)
+            emb_hypn1_rel = self.hypn_rel(emb_hypn1)
+
             nwords = torch.multinomial(self.weights, batch_size * self.n_negs, replacement=True).view(batch_size, -1).cuda()
             emb_hyp_neg = self.hypn_rel(self.hypn_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1))
 
-            output_dict['loss_hyp'] = torch.sum((self.dist_fn(emb_hypn1, emb_hypn2) \
+            output_dict['loss_hyp'] = torch.sum((self.dist_fn(emb_hypn1_rel, emb_hypn2) \
+                                        # + F.relu(1 - self.dist_fn(emb_hypn2, emb_hypn1)) \
+                                        + F.relu(1 - self.dist_fn(self.hypn_rel(emb_hypn2), emb_hypn1)) \
+                                        # + F.relu(1 - self.dist_fn(self.hypn_rel(emb_hypn2), self.hypn_rel(emb_hypn1))) \
                                         + self.neg_wn_ratio * F.relu(1 - self.dist_fn(emb_hypn2.view(batch_size, 1, -1), emb_hyp_neg, dim=2)).mean(1) \
-                                    ) * hyp_mask)/max(hyp_len, 1)
+                                        ) * hyp_mask)/max(hyp_len, 1)
 
             output_dict['hyp_emb'] = (emb_hypn1, emb_hypn2)
 
         if 'mer' in self.lex_rels and meronyms is not None:
+            batch_size = meronyms.size(0)
+            mer_mask = mask(meronyms) 
+            mer_len = torch.sum(mer_mask)
+
             emb_mern1 = self.mern_proj(self.embedding(meronyms[:, 0]))
             emb_mern2 = self.mern_proj(self.embedding(meronyms[:, 1]))
-            emb_mern1 = self.mern_rel(emb_mern1)
-            mer_mask = 1 - (meronyms[:,0] == self.pad_idx).float()
-            mer_len = torch.sum(mer_mask)
-            # output_dict['loss_mer'] = torch.sum(self.dist_fn(emb_mern1, emb_mern2) * mer_mask)/max(mer_len, 1)
-            batch_size = meronyms.size(0)
+            emb_mern1_rel = self.mern_rel(emb_mern1)
+
             nwords = torch.multinomial(self.weights, batch_size * self.n_negs, replacement=True).view(batch_size, -1).cuda()
             emb_mer_neg = self.mern_rel(self.mern_proj(self.embedding(nwords.view(batch_size, self.n_negs)).view(-1, self.emb_dim)).view(batch_size, self.n_negs, -1))
 
-            output_dict['loss_mer'] = torch.sum((self.dist_fn(emb_mern1, emb_mern2) \
+            output_dict['loss_mer'] = torch.sum((self.dist_fn(emb_mern1_rel, emb_mern2) \
                                         + self.neg_wn_ratio * F.relu(self.n_margin - self.dist_fn(emb_mern2.view(batch_size, 1, -1), emb_mer_neg, dim=2)).mean(1) \
-                                    )* mer_mask)/max(mer_len, 1)
+                                        # + F.relu(1 - self.dist_fn(emb_mern2, emb_mern1)) \
+                                        + F.relu(1 - self.dist_fn(self.mern_rel(emb_mern2), emb_mern1)) \
+                                        # + F.relu(1 - self.dist_fn(self.mern_rel(emb_mern2), self.mern_rel(emb_mern1))) \
+                                        ) * mer_mask)/max(mer_len, 1)
+                                    
             output_dict['mer_emb'] = (emb_mern1, emb_mern2)
 
         return output_dict

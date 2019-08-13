@@ -8,15 +8,6 @@
       "tokens": {
         "type": "single_id",
         "lowercase_tokens": true
-      },
-      "token_characters": {
-        "type": "characters",
-        "character_tokenizer": {
-          "byte_encoding": "utf-8",
-          "start_tokens": [259],
-          "end_tokens": [260]
-        },
-        "min_padding_length": 5
       }
     }
   },
@@ -25,36 +16,23 @@
   "model": {
     "type": "bidaf",
     "text_field_embedder": {
-      "token_embedders": {
-        "tokens": {
-          "type": "embedding",
-          "pretrained_file": "${emb_filetxt}",
-          "embedding_dim": ${task_emb_size},
-          "trainable": false
-        },
-        "token_characters": {
-          "type": "character_encoding",
-          "embedding": {
-            "num_embeddings": 262,
-            "embedding_dim": 16
-          },
-          "encoder": {
-            "type": "cnn",
-            "embedding_dim": 16,
-            "num_filters": 100,
-            "ngram_filter_sizes": [5]
-          },
-          "dropout": 0.2
+        "token_embedders": {
+            "tokens": {
+                "type": "embedding",
+                "pretrained_file": "${emb_filetxt}",
+                "embedding_dim": ${task_emb_size},
+                "trainable": false
+            },
         }
-      }
     },
     "num_highway_layers": 2,
     "phrase_layer": {
       "type": "lstm",
       "bidirectional": true,
-      "input_size": ${task_emb_size} + 100,
+      "input_size": ${task_emb_size},
       "hidden_size": 100,
-      "num_layers": 1
+      "num_layers": 1,
+      "dropout": 0.2
     },
     "similarity_function": {
       "type": "linear",
@@ -75,7 +53,8 @@
       "bidirectional": true,
       "input_size": 1400,
       "hidden_size": 100,
-      "num_layers": 1
+      "num_layers": 1,
+      "dropout": 0.2
     },
     "dropout": 0.2
   },

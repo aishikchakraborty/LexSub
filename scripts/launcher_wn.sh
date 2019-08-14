@@ -225,13 +225,19 @@ run_extrinsic_task () {
     envsubst < ./extrinsic_tasks/local/${task}_template.jsonnet > ${task_file}
     for run in $(seq 1 ${num_ext_runs}); do
         rm -rf ${output_dir}/${task}${run}
-        sbatch -o ${output_dir}/${task}${run}_std.out \
-            -J "${task}${run}_${SLURM_JOB_NAME}" \
-            -e ${output_dir}/${task}${run}_std.out \
-            -A ${account} \
-            -t "${task2time[$task]}" \
-            scripts/launcher_basic.sh allennlp train ${task_file} -s ${output_dir}/${task}${run}/ \
+        if [ -n "${debug}" ]; then
+            sh ./scripts/launcher_basic.sh allennlp train ${task_file} -s ${output_dir}/${task}${run}/ \
             --include-package extrinsic_tasks.models --include-package extrinsic_tasks.dataset_readers
+        else
+
+            sbatch -o ${output_dir}/${task}${run}_std.out \
+                -J "${task}${run}_${SLURM_JOB_NAME}" \
+                -e ${output_dir}/${task}${run}_std.out \
+                -A ${account} \
+                -t "${task2time[$task]}" \
+                ./scripts/launcher_basic.sh allennlp train ${task_file} -s ${output_dir}/${task}${run}/ \
+                --include-package extrinsic_tasks.models --include-package extrinsic_tasks.dataset_readers
+        fi
     done
 }
 
@@ -245,7 +251,7 @@ if [ ${step} -lt 2 ]; then
 fi
 
 i=3
-for ext_task in ner sst decomposable bidaf bimpm lex_relation_prediction
+for ext_task in sst ner decomposable bidaf bimpm lex_relation_prediction
 do
     if [ ${step} -lt ${i} ]; then
         run_extrinsic_task ${ext_task};

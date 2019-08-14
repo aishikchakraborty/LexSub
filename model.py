@@ -539,7 +539,7 @@ class WNModel(nn.Module):
 
             output_dict['loss_syn'] = torch.sum((self.dist_fn(emb_syn1, emb_syn2) \
                                         + self.neg_wn_ratio * F.relu(self.n_margin - self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2)).mean(1) \
-                                        + self.neg_wn_ratio * F.relu(self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2) - 1.5).mean(1) \
+                                        # + self.neg_wn_ratio * F.relu(self.dist_fn(emb_syn1.view(batch_size, 1, -1), emb_syn_neg, dim=2) - 1.5).mean(1) \
                                     ) * syn_mask)/max(syn_len, 1)
             output_dict['syn_emb'] = (emb_syn1, emb_syn2)
 

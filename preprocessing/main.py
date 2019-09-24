@@ -20,8 +20,6 @@ random.seed(1234)
 parser = argparse.ArgumentParser(description='Preprocessing for finding synonym/antonym relations')
 parser.add_argument('--data', type=str, default='../data/glove',
                     help='location of the data corpus')
-parser.add_argument('--out-dir', type=str, default='../data/glove/annotated',
-                    help='location of the output directory')
 parser.add_argument('--bptt', type=int, default=1,
                     help='bptt length')
 parser.add_argument('--batch-size', type=int, default=20,
@@ -36,10 +34,37 @@ parser.add_argument('--lower', action='store_true',
                     help='Lowercase lemmas from wordnet.')
 parser.add_argument('--version', type=int, default=1,
                     help='Version of the code to run.')
+parser.add_argument('--from_file', action='store_true',
+                    help='select relations from file.')
 
 args = parser.parse_args()
 word2idx = {}
 idx2word = []
+
+if args.from_file:
+    w2syn = {}
+    w2ant = {}
+    w2hyp = {}
+    w2mer = {}
+
+    for (d, filename) in [(w2syn, 'syn_v%d.txt'), 
+                            (w2ant, 'ant_v%d.txt'), 
+                            (w2hyp, 'hyp_v%d.txt'), 
+                            (w2mer, 'mer_v%d.txt')]:
+        try:
+            print("Processing file: %s" % filename % args.version)
+            with open(filename % args.version) as file:
+                for line in file:
+                    w1, w2 = line.strip().split()
+                    if w1 not in d:
+                        d[w1] = []
+                    d[w1].append(w2)
+
+        except Exception as e:
+            print("Unable to open file: %s" % filename)
+
+
+                
 
 # taken from https://stackoverflow.com/questions/8689795/how-can-i-remove-non-ascii-characters-but-leave-periods-and-spaces-using-python
 def remove_non_ascii(text):
@@ -78,100 +103,107 @@ def get_lexical_relations(word, word2idx):
     synonyms = set([]); antonyms = set([]);
     hypernyms = set([]); hyponyms = set([]);
     meronyms = set([]); holonyms = set([])
-    try:
-        synsets = wordnet.synsets(word)
-    except:
-        pass
 
-    for syn in synsets:
-        for lemma in syn.lemmas():
+    if args.from_file:
+        synonyms.update([(word, name) for name in w2syn.get(word, [])])
+        antonyms.update([(word, name) for name in w2ant.get(word, [])])
+        hyponyms.update([(word, name) for name in w2hyp.get(word, [])])
+        meronyms.update([(word, name) for name in w2mer.get(word, [])])
+    else:
+        try:
+            synsets = wordnet.synsets(word)
+        except:
+            pass
 
-            name = lemma.name()
-            if args.lower:
-                name = name.lower()
+        for syn in synsets:
+            for lemma in syn.lemmas():
 
-            tup = (word, name)
-            if name != word and name in word2idx:
-                synonyms.add(tup)
-
-            for ant in lemma.antonyms():
-                name = ant.name()
+                name = lemma.name()
                 if args.lower:
                     name = name.lower()
 
                 tup = (word, name)
-                if name in word2idx:
-                    antonyms.add(tup)
+                if name != word and name in word2idx:
+                    synonyms.add(tup)
 
-        hyp =  syn.instance_hypernyms()
+                for ant in lemma.antonyms():
+                    name = ant.name()
+                    if args.lower:
+                        name = name.lower()
 
-        for h in hyp:
-            if args.version < 2 and syn.pos() == 'v':
-                continue
+                    tup = (word, name)
+                    if name in word2idx:
+                        antonyms.add(tup)
 
-            for lemma in h.lemmas():
-                name = lemma.name()
-                if args.lower:
-                    name = name.lower()
+            hyp =  syn.instance_hypernyms()
 
-                if name == word:
+            for h in hyp:
+                if args.version < 2 and syn.pos() == 'v':
                     continue
 
-                tup = (word, name)
-                if name in word2idx:
-                    hypernyms.add(tup)
+                for lemma in h.lemmas():
+                    name = lemma.name()
+                    if args.lower:
+                        name = name.lower()
 
-        hyp = syn.instance_hyponyms()
-        if min([len(x) for x in syn.hypernym_paths()]) > 5:
-            hyp += syn.hyponyms()
+                    if name == word:
+                        continue
 
-        for h in hyp:
-            if args.version < 2 and syn.pos() == 'v':
-                continue
+                    tup = (word, name)
+                    if name in word2idx:
+                        hypernyms.add(tup)
 
-            for lemma in h.lemmas():
-                name = lemma.name()
-                if args.lower:
-                    name = name.lower()
+            hyp = syn.instance_hyponyms()
+            if min([len(x) for x in syn.hypernym_paths()]) > 5:
+                hyp += syn.hyponyms()
 
-                if name == word:
+            for h in hyp:
+                if args.version < 2 and syn.pos() == 'v':
                     continue
 
-                tup = (word, name)
-                if name in word2idx:
-                    hyponyms.add(tup)
-                    hypernyms.add((name, word))
+                for lemma in h.lemmas():
+                    name = lemma.name()
+                    if args.lower:
+                        name = name.lower()
 
-        mer = syn.member_meronyms() + syn.part_meronyms() + syn.substance_meronyms()
-        for m in mer:
+                    if name == word:
+                        continue
 
-            for lemma in m.lemmas():
-                name = lemma.name()
-                if args.lower:
-                    name = name.lower()
+                    tup = (word, name)
+                    if name in word2idx:
+                        hyponyms.add(tup)
+                        hypernyms.add((name, word))
 
-                if name == word:
-                    continue
+            mer = syn.member_meronyms() + syn.part_meronyms() + syn.substance_meronyms()
+            for m in mer:
 
-                tup = (name, word)
-                if name in word2idx:
-                    meronyms.add(tup)
+                for lemma in m.lemmas():
+                    name = lemma.name()
+                    if args.lower:
+                        name = name.lower()
 
-        mer = syn.member_holonyms() + syn.part_holonyms() + syn.substance_holonyms()
-        for m in mer:
+                    if name == word:
+                        continue
 
-            for lemma in m.lemmas():
-                name = lemma.name()
-                if args.lower:
-                    name = name.lower()
+                    tup = (name, word)
+                    if name in word2idx:
+                        meronyms.add(tup)
 
-                if name == word:
-                    continue
+            mer = syn.member_holonyms() + syn.part_holonyms() + syn.substance_holonyms()
+            for m in mer:
 
-                tup = (name, word)
-                if name in word2idx:
-                    holonyms.add(tup)
-                    meronyms.add((word, name))
+                for lemma in m.lemmas():
+                    name = lemma.name()
+                    if args.lower:
+                        name = name.lower()
+
+                    if name == word:
+                        continue
+
+                    tup = (name, word)
+                    if name in word2idx:
+                        holonyms.add(tup)
+                        meronyms.add((word, name))
 
     return synonyms, antonyms, hypernyms, hyponyms, meronyms, holonyms
 
@@ -451,7 +483,7 @@ create_corpus(os.path.join(args.data, test), os.path.join(out_dir, 'test.txt'))
 print('Creating valid files')
 create_corpus(os.path.join(args.data, valid), os.path.join(out_dir, 'valid.txt'))
 
-if args.model == 'retro':
+if args.model == 'retro' and not args.from_file:
     with open('syn_v{}.txt'.format(args.version), 'w') as syn:
         for syn_pair in global_synonyms:
             syn.write('%s\t%s\n' % syn_pair)

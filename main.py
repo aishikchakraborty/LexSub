@@ -407,6 +407,12 @@ def evaluate(data_source):
                                             torch.sum(dist_fn(emb_syn1, emb_syn2) * syn_mask)/syn_len)
                 total_loss_syn += loss_syn
 
+                emb_ant1, emb_ant2 = output_dict['ant_emb']
+                ant_mask = 1 - (antonyms[:,0] == pad_idx).float()
+                ant_len = torch.sum(ant_mask)
+                loss_ant = output_dict.get('loss_ant',
+                                            torch.sum(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)) * ant_mask)/ant_len)
+                total_loss_ant += loss_ant
 
             if 'hyp' in args.lex_rels:
                 if 'loss_hyp' in output_dict:
@@ -503,8 +509,15 @@ def train(epoch):
             loss_syn = output_dict.get('loss_syn',
                                         torch.sum(dist_fn(emb_syn1, emb_syn2) * syn_mask)/syn_len)
 
-            total_loss += syn_ratio * loss_syn 
+            emb_ant1, emb_ant2 = output_dict['ant_emb']
+            ant_mask = 1 - (antonyms[:,0] == pad_idx).float()
+            ant_len = torch.sum(ant_mask)
+            loss_ant = output_dict.get('loss_ant',
+                                        torch.sum(F.relu(args.margin - dist_fn(emb_ant1, emb_ant2)) * ant_mask)/ant_len)
+
+            total_loss += syn_ratio * (loss_syn + loss_ant)
             total_loss_syn += loss_syn.item()
+            total_loss_ant += loss_ant.item()
 
         if 'hyp' in args.lex_rels:
             if 'loss_hyp' in output_dict:

@@ -18,10 +18,10 @@
         "text_field_embedder": {
             "token_embedders": {
                 "tokens": {
-                    "pretrained_file": "${emb_filetxt}",
                     "type": "embedding",
+                    "pretrained_file": "${emb_filetxt}",
                     "embedding_dim": ${task_emb_size},
-                    "trainable": false
+                    "trainable": true
                 }
             }
         },

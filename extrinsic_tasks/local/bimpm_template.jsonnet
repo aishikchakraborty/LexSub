@@ -13,9 +13,6 @@
         "type": "single_id",
         "lowercase_tokens": false
       },
-      "token_characters": {
-        "type": "characters"
-      }
     }
   },
   "train_data_path": "extrinsic_tasks/datasets/qqp/train.tsv",
@@ -33,33 +30,20 @@
         "trainable": false,
         "padding_index": 0
       },
-      "token_characters": {
-        "type": "character_encoding",
-        "embedding": {
-          "embedding_dim": 20,
-          "padding_index": 0
-        },
-        "encoder": {
-          "type": "gru",
-          "input_size": 20,
-          "hidden_size": 50,
-          "num_layers": 1,
-          "bidirectional": true
-        }
-      }
     },
     "matcher_word": {
       "is_forward": true,
-      "hidden_dim": ${task_emb_size} + 100,
+      "hidden_dim": ${task_emb_size},
       "num_perspectives": 10,
       "with_full_match": false
     },
     "encoder1": {
       "type": "lstm",
       "bidirectional": true,
-      "input_size": ${task_emb_size} + 100,
+      "input_size": ${task_emb_size},
       "hidden_size": 200,
-      "num_layers": 1
+      "num_layers": 1,
+      "dropout": 0.1
     },
     "matcher_forward1": {
       "is_forward": true,
@@ -76,7 +60,8 @@
       "bidirectional": true,
       "input_size": 400,
       "hidden_size": 200,
-      "num_layers": 1
+      "num_layers": 1,
+      "dropout": 0.1
     },
     "matcher_forward2": {
       "is_forward": true,
@@ -119,8 +104,8 @@
     "batch_size": 64
   },
   "trainer": {
-    "num_epochs": 40,
-    "patience": 10,
+    "num_epochs": 20,
+    "patience": 5,
     "cuda_device": 0,
     "grad_clipping": 5.0,
     "validation_metric": "+accuracy",

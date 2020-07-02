@@ -68,4 +68,14 @@ mdl=retro emb_text=true output_dir=output/lear_syn_ant_hyp_mer emb_filename=lear
 
 ## Results
 
+## Citation
+```
+@article{anand2019unsupervised,
+  title={Unsupervised State Representation Learning in Atari},
+  author={Anand, Ankesh and Racah, Evan and Ozair, Sherjil and Bengio, Yoshua and C{\^o}t{\'e}, Marc-Alexandre and Hjelm, R Devon},
+  journal={arXiv preprint arXiv:1906.08226},
+  year={2019}
+}
+```
+
 ## Contributing

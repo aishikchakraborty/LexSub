@@ -1,7 +1,22 @@
-# Imposing WordNet relation on Distributional Word Embeddings
+# LexSub:Learning Lexical Relations in a Distributional Vector Space
 
-This example trains a multi-layer RNN (Elman, GRU, or LSTM) on a language modeling task.
-By default, the training script uses the Wikitext-2 dataset, provided.
+This repository is the official implementation of [LexSub:Learning Lexical Relations in a Distributional Vector Space](https://www.mitpressjournals.org/doi/full/10.1162/tacl_a_00316).
+
+
+LexSub is a framework to unify lexical and distributional semantics by defining lexical subspaces of the distributional vector space (word embeddings) in which a lexical relation should hold. LexSub can handle symmetric attract and repel relations (e.g., synonymy and antonymy, respectively), as well as asymmetric relations (e.g., hypernymy and meronomy).
+
+
+## Requirements
+
+## Training
+
+## Evaluation
+
+## Pre-trained Models
+
+## Results
+
+## Contributing
 
 ```bash
 cd preprocessing/

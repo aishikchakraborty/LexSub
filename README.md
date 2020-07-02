@@ -45,19 +45,9 @@ python main.py --cuda --emsize 300 --nhid 700 --dropout 0.5 --mdl Vanilla       
 python main.py --cuda --emsize 300 --nhid 700 --dropout 0.5 --mdl WN        #  Train Augmented LM
 ```
 
-## Evaluations
-### Word Similarity Task
-```bash
-cd analogy_tasks/
-bash eval.sh
-```
-
 ### Extrinsic Tasks
 
 ```
-cd extrinsic_tasks/
-allennlp train <model_config> -s <output_log_dir>
-
 # Commands to run:
 # Glove Retrofitting: 
 output_dir_prefix=output/syn_hyp_mer_0.01_0.01_0.001_allennlp_original epoch=100 synr=0.01 hypr=0.01 merr=0.001 syn=true hyp=true mer=true syn_ratio=${synr} hyp_ratio=${hypr} mer_ratio=${merr} data=glove mdl=retro n_margin=0.5 neg_wn_ratio=10 lr=0.5 ./scripts/run_once.sh 
@@ -69,3 +59,5 @@ output_dir_prefix=output/syn_hyp_mer_0.01_0.01_0.001_allennlp_original epoch=100
 
 
 ## Contributing
+* If you find a bug or want to propose an improvement, please open a github issue.
+* If you would like to submit an improvement, bug fix or want to list new LexSub embeddings on this page (w/ acknowledgement), please submit a pull request.

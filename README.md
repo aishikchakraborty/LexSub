@@ -8,15 +8,8 @@ LexSub is a framework to unify lexical and distributional semantics by defining 
 
 ## Requirements
 
-## Training
+## Training and Evaluation
 
-## Evaluation
-
-## Pre-trained Models
-
-## Results
-
-## Contributing
 
 ```bash
 cd preprocessing/
@@ -39,7 +32,7 @@ bash eval.sh
 ```bash
 cd extrinsic_tasks/
 allennlp train <model_config> -s <output_log_dir>
-```
+
 
 Commands to run:
 Glove Retrofitting: 
@@ -68,3 +61,11 @@ mdl=retro emb_text=true output_dir=output/lear_original emb_filename=lear_origin
 
 LEAR Syn Ant Hyp Mer:
 mdl=retro emb_text=true output_dir=output/lear_syn_ant_hyp_mer emb_filename=lear_syn_ant_hyp_mer_glove.6B.300d step=2 ./scripts/run_once.sh
+
+```
+
+## Pre-trained Models
+
+## Results
+
+## Contributing

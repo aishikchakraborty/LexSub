@@ -46,7 +46,8 @@ Create the data directory and download GloVe embeddings.
 ```
 mkdir -p data/glove; cd data/glove;
 wget http://nlp.stanford.edu/data/glove.6B.zip .
-unzip glove.6B.zip 
+unzip glove.6B.zip;
+cd ../../;
 ```
 
 Preprocessing to annotate GloVe vocab with their WordNet relations:

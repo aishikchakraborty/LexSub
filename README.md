@@ -3,6 +3,8 @@
 This repository is the official implementation of [LexSub: Learning Lexical Relations in a Distributional Vector Space](https://www.mitpressjournals.org/doi/full/10.1162/tacl_a_00316).
 
 
+ ![ ](img/LexSub_concept.png "LexSub Approach" | width=250){ width=50% }  ![ ](img/Other_concept.png "Retrofitting Approach" | width=250) 
+
 LexSub is a framework to unify lexical and distributional semantics by defining lexical subspaces of the distributional vector space (word embeddings) in which a lexical relation should hold. LexSub can handle symmetric attract and repel relations (e.g., synonymy and antonymy, respectively), as well as asymmetric relations (e.g., hypernymy and meronomy).
 
 ## Pre-trained Models
@@ -31,26 +33,13 @@ We will release new embeddings soon.
 * python3
 * pytorch==0.4.1
 
-Clone the repository and then do
+Clone the repository and then run
 ```
 pip install -r requirements.txt
 ```
 
 ## Training LexSub model:
-```bash
-cd preprocessing/
-python main.py # Do preprocessing
-
-cd ../
-python main.py --cuda --emsize 300 --nhid 700 --dropout 0.5 --mdl Vanilla        #  Train Vanilla LM
-python main.py --cuda --emsize 300 --nhid 700 --dropout 0.5 --mdl WN        #  Train Augmented LM
 ```
-
-### Extrinsic Tasks
-
-```
-# Commands to run:
-# Glove Retrofitting: 
 output_dir_prefix=output/syn_hyp_mer_0.01_0.01_0.001_allennlp_original epoch=100 synr=0.01 hypr=0.01 merr=0.001 syn=true hyp=true mer=true syn_ratio=${synr} hyp_ratio=${hypr} mer_ratio=${merr} data=glove mdl=retro n_margin=0.5 neg_wn_ratio=10 lr=0.5 ./scripts/run_once.sh 
 
 ```

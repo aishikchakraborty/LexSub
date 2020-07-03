@@ -3,9 +3,13 @@
 This repository is the official implementation of [LexSub: Learning Lexical Relations in a Distributional Vector Space](https://www.mitpressjournals.org/doi/full/10.1162/tacl_a_00316).
 
 
- ![ ](img/LexSub_concept.png "LexSub Approach" | width=250){ width=50% }  ![ ](img/Other_concept.png "Retrofitting Approach" | width=250) 
+
+ ![LexSub vs Retrofitting Approaches ](img/Concept.png "LexSub Approach" ) 
 
 LexSub is a framework to unify lexical and distributional semantics by defining lexical subspaces of the distributional vector space (word embeddings) in which a lexical relation should hold. LexSub can handle symmetric attract and repel relations (e.g., synonymy and antonymy, respectively), as well as asymmetric relations (e.g., hypernymy and meronomy).
+ 
+ ![LexSub vs Retrofitting Approaches ](img/subspaces_combined.png "LexSub Approach" ) 
+
 
 ## Pre-trained Models
 You can download post-hoc retrofitted embeddings from here:

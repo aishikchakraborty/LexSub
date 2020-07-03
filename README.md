@@ -36,11 +36,20 @@ We will release new embeddings soon.
 ### Requirements:
 * python3
 * pytorch==0.4.1
+* GloVe 6B.300d embeddings.
 
 Clone the repository and then run
 ```
 pip install -r requirements.txt
 ```
+Create the data directory and download GloVe embeddings.
+```
+mkdir -p data/glove; cd data/glove;
+wget http://nlp.stanford.edu/data/glove.6B.zip .
+unzip glove.6B.zip 
+```
+
+Preprocessing to annotate GloVe vocab with their WordNet relations:
 
 ## Training LexSub model:
 ```

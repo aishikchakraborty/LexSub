@@ -8,7 +8,7 @@ This repository is the official implementation of [LexSub: Learning Lexical Rela
 
 LexSub is a framework to unify lexical and distributional semantics by defining lexical subspaces of the distributional vector space (word embeddings) in which a lexical relation should hold. LexSub can handle symmetric attract and repel relations (e.g., synonymy and antonymy, respectively), as well as asymmetric relations (e.g., hypernymy and meronomy).
  
- ![LexSub vs Retrofitting Approaches ](img/subspaces_combined.png "LexSub Approach" ) 
+ ![LexSub Subspaces ](img/subspaces_combined.png "LexSub Subspaces" ) 
 
 
 ## Pre-trained Models
@@ -50,7 +50,11 @@ output_dir_prefix=output/syn_hyp_mer_0.01_0.01_0.001_allennlp_original epoch=100
 
 
 ## Results
+ ![Similarity and Relatedness Results ](img/similarity_relatedness.png "Similarity and Relatedness Results" ) 
 
+ ![Hyerpnymy Results ](img/hypernymy_evaluation.png "Hypernymy Results" ) 
+
+ ![Extrinsic Task Results ](img/extrinsic_results.png "Extrinsic Task Results" ) 
 
 ## Contributing
 * If you find a bug or want to propose an improvement, please open a github issue.

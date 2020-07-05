@@ -51,6 +51,9 @@ cd ../../;
 ```
 
 Preprocessing to annotate GloVe vocab with their WordNet relations:
+```
+python preprocessing/main.py --model retro --lower --data data/glove/
+```
 
 ## Training LexSub model:
 ```

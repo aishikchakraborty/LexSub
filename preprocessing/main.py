@@ -22,17 +22,17 @@ parser.add_argument('--data', type=str, default='../data/glove',
                     help='location of the data corpus')
 parser.add_argument('--bptt', type=int, default=1,
                     help='bptt length')
-parser.add_argument('--batch-size', type=int, default=20,
+parser.add_argument('--batch_size', type=int, default=5000,
                     help='Batch size')
 parser.add_argument('--ss_t', type=float, default=1e-5,
                     help='Subsampling Threshold')
-parser.add_argument('--model', type=str, default='rnn',
+parser.add_argument('--model', type=str, default='retro',
                     help='Model type being used to train the embedding. Options are: [rnn, CBOW, retro]')
-parser.add_argument('--max-pair', type=int, default=15,
+parser.add_argument('--max_pair', type=int, default=25,
                     help='max no of pairs of wordnet relations')
 parser.add_argument('--lower', action='store_true',
                     help='Lowercase lemmas from wordnet.')
-parser.add_argument('--version', type=int, default=1,
+parser.add_argument('--version', type=int, default=2,
                     help='Version of the code to run.')
 parser.add_argument('--from_file', action='store_true',
                     help='select relations from file.')
@@ -482,21 +482,21 @@ print('Creating test files')
 create_corpus(os.path.join(args.data, test), os.path.join(out_dir, 'test.txt'))
 print('Creating valid files')
 create_corpus(os.path.join(args.data, valid), os.path.join(out_dir, 'valid.txt'))
-
+import pdb; pdb.set_trace()
 if args.model == 'retro' and not args.from_file:
-    with open('syn_v{}.txt'.format(args.version), 'w') as syn:
+    with open(os.path.join(args.data, 'syn_v{}.txt'.format(args.version)), 'w') as syn:
         for syn_pair in global_synonyms:
             syn.write('%s\t%s\n' % syn_pair)
 
-    with open('ant_v{}.txt'.format(args.version), 'w') as ant:
+    with open(os.path.join(args.data, 'ant_v{}.txt'.format(args.version)), 'w') as ant:
         for ant_pair in global_antonyms:
            ant.write('%s\t%s\n' % ant_pair)
 
-    with open('hyp_v{}.txt'.format(args.version), 'w') as hyp:
+    with open(os.path.join(args.data, 'hyp_v{}.txt'.format(args.version)), 'w') as hyp:
         for hyp_pair in global_hypernyms:
             hyp.write('%s\t%s\n' % hyp_pair)
 
-    with open('mer_v{}.txt'.format(args.version), 'w') as mer:
+    with open(os.path.join(args.data, 'mer_v{}.txt'.format(args.version)), 'w') as mer:
         for mer_pair in global_meronyms:
             mer.write('%s\t%s\n' % mer_pair)
 

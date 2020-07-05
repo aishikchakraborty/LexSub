@@ -9,6 +9,7 @@ from scipy.stats import spearmanr
 from scipy.stats import pearsonr
 from sklearn.metrics import average_precision_score
 import _pickle as pickle
+import os
 
 import hypernymysuite_eval
 
@@ -25,6 +26,7 @@ parser.add_argument('--hypernymy', action='store_true', help='Run HypernymySuite
 parser.add_argument('--neighbors', action='store_true', help='Dump neighbors')
 parser.add_argument('--text', action='store_true', help='read embedding files in text format')
 parser.add_argument('--prefix', type=str, default='', help='Prefix to add to word similarity task names.')
+parser.add_argument('--data_dir', type=str, default='../data/glove/', help='Data directory for preprocessed stuff.')
 parser.add_argument('--output_file', type=str, default=None, help='File to which to dump the outputs. Used specifically for dumping neighbours')
 
 args = parser.parse_args()
@@ -190,9 +192,9 @@ class RankedNeighbors():
         self.output_filename = args.output_file
         self.neighbors = {'syn': {}, 'hyp': {}, 'mer': {}}
 
-        for rel,neighbor_file, order in [('syn', '../preprocessing/syn_v2.txt', None),
-                                  ('hyp', '../preprocessing/hyp_v2.txt', 'reverse'),
-                                  ('mer', '../preprocessing/mer_v2.txt', 'reverse')]:
+        for rel,neighbor_file, order in [('syn', os.path.join(args.data_dir, 'syn_v2.txt'), None),
+                                         ('hyp', os.path.join(args.data_dir, 'hyp_v2.txt'), 'reverse'),
+                                         ('mer', os.path.join(args.data_dir, 'mer_v2.txt'), 'reverse')]:
             with open(neighbor_file) as f:
                 for line in f:
                     word1, word2 = line.split()

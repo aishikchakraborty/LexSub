@@ -112,7 +112,7 @@ export output_dir_prefix=${output_dir_prefix:="output"}
 dir="${output_dir_prefix}/${job_name}/""${date_suffix:=$(date '+%Y_%m_%d_%H_%M')}"
 
 export output_dir=${output_dir:=$dir}
-export account="${account:=rpp-bengioy}"
+export account="${account:=rrg-bengioy-ad}"
 # export account="${account:=rrg-dprecup}"
 export mode="${mode:=slurm}"
 

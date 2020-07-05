@@ -50,6 +50,7 @@ unzip glove.6B.zip;
 cd ../../;
 ```
 
+## Preprocessing data:
 Preprocessing to annotate GloVe vocab with their WordNet relations:
 ```
 python preprocessing/main.py --model retro --data data/glove/

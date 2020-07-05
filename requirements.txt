@@ -1,1 +1,13 @@
-torch
+regex==2018.01.10
+wrapt==1.10.0
+nltk==3.4
+itsdangerous==1.1.0
+https://download.pytorch.org/whl/cu90/torch-0.4.1.post2-cp37-cp37m-linux_x86_64.whl
+scikit-learn==0.20.2
+torchtext==0.3.1
+allennlp==0.8.2
+tensorboardX==1.2 
+cupy==6.5.0
+pynvrtc==9.2
+git+https://github.com/salesforce/pytorch-qrnn
+matplotlib==2.2.3

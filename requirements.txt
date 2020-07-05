@@ -11,3 +11,4 @@ cupy==6.5.0
 pynvrtc==9.2
 git+https://github.com/salesforce/pytorch-qrnn
 matplotlib==2.2.3
+pandas==0.24.1

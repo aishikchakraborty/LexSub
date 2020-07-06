@@ -594,6 +594,7 @@ emb_name = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '
 emb_name_txt = os.path.join(args.save_emb, 'emb_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.txt')
 
 rel_emb_name_temp = os.path.join(args.save_emb, 'emb_%s_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.pkl')
+rel_emb_name_temp_txt = os.path.join(args.save_emb, 'emb_%s_' + args.data + '_' + args.model + '_' + lex_rels + '_' + str(args.emsize) + '_' + str(args.nhid) + '_' + str(args.wn_hid) + '_' + args.distance + ('_wn_v{}'.format(args.data_version) if args.data_version else '') + '.txt')
 
 vocab_name = os.path.join(args.save, 'vocab_' + args.data + '.pkl')
 pickle.dump(vocab, open(vocab_name, 'wb'))
@@ -615,8 +616,6 @@ try:
             if not best_val_loss or val_loss < best_val_loss:
                 with open(model_name, 'wb') as f:
                     torch.save(model, f)
-                print('Saving learnt embeddings : %s' % emb_name)
-                pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
 
                 best_val_loss = val_loss
                 patience = 0
@@ -629,8 +628,6 @@ try:
             print('Saving Model')
             with open(model_name, 'wb') as f:
                 torch.save(model, f)
-            print('Saving learnt embeddings : %s' % emb_name)
-            pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
 
 except KeyboardInterrupt:
     print('-' * 89)
@@ -655,7 +652,9 @@ if args.model != 'retro':
     print('=' * 89)
 
 print('Saving final learnt embeddings ')
-pickle.dump(model.encoder.weight.data, open(emb_name, 'wb'))
+with open(emb_name, 'wb') as f:
+    pickle.dump(model.encoder.weight.data, f)
+
 with open(emb_name_txt, 'w') as f:
     final_emb = model.encoder.weight.data.cpu().numpy()
     for i in range(final_emb.shape[0]):
@@ -664,18 +663,59 @@ with open(emb_name_txt, 'w') as f:
 
 for rel in args.lex_rels:
     rel_emb_name = rel_emb_name_temp % rel
-    print('Saving lexical subspace embeddings : %s' % rel_emb_name)
+    rel_emb_name_txt = rel_emb_name_temp_txt % rel
+    print('Saving lexical subspace embeddings : %s' % rel)
+
     if rel == 'syn':
-        rel_emb = model.wn.syn_proj(model.wn.embedding.weight)
-        pickle.dump(rel_emb.data, open(rel_emb_name, 'wb'))
+        syn_emb = model.wn.syn_proj(model.wn.embedding.weight)
+        with open(rel_emb_name, 'wb') as f:
+            pickle.dump(syn_emb.data, f)
+
+        syn_emb_np = syn_emb.data.cpu().numpy()
+        with open(rel_emb_name_txt, 'w') as f:
+            for i in range(syn_emb_np.shape[0]):
+                f.write(vocab.itos[i] + ' ')
+                f.write(' '.join([str(x) for x in syn_emb_np[i, :]]) + '\n')
+
     elif rel == 'hyp':
-        rel_emb_1 = model.wn.hypn_proj(model.wn.embedding.weight)
-        pickle.dump(rel_emb_1.data, open(rel_emb_name_temp % ('hypn_hypernyms'), 'wb'))
-        rel_emb_2 = model.wn.hypn_rel(rel_emb_1)
-        pickle.dump(rel_emb_2.data, open(rel_emb_name_temp % ('hypn_hyponyms'), 'wb'))
+        hypernyms_emb = model.wn.hypn_proj(model.wn.embedding.weight)
+
+        with open(rel_emb_name_temp % ('hypn_hypernyms'), 'wb') as f:
+            pickle.dump(hypernyms_emb.data, f)
+        
+        hypernyms_emb_np = hypernyms_emb.data.cpu().numpy()
+        with open(rel_emb_name_temp_txt % ('hypn_hypernyms'), 'w') as f:
+            for i in range(hypernyms_emb_np.shape[0]):
+                f.write(vocab.itos[i] + ' ')
+                f.write(' '.join([str(x) for x in hypernyms_emb_np[i, :]]) + '\n')
+
+        hyponyms_emb = model.wn.hypn_rel(hypernyms_emb)
+        with open(rel_emb_name_temp % ('hypn_hyponyms'), 'wb') as f:
+            pickle.dump(hyponyms_emb.data, f)
+
+        hyponyms_emb_np = hyponyms_emb.data.cpu().numpy()
+        with open(rel_emb_name_temp_txt % ('hypn_hyponyms'), 'w') as f:
+            for i in range(hyponyms_emb_np.shape[0]):
+                f.write(vocab.itos[i] + ' ')
+                f.write(' '.join([str(x) for x in hyponyms_emb_np[i, :]]) + '\n')
 
     elif rel == 'mer':
-        rel_emb_1 = model.wn.mern_proj(model.wn.embedding.weight)
-        pickle.dump(rel_emb_1.data, open(rel_emb_name_temp % ('mern_meronyms'), 'wb'))
-        rel_emb_2 = model.wn.mern_rel(rel_emb_1)
-        pickle.dump(rel_emb_2.data, open(rel_emb_name_temp % ('mern_holonyms'), 'wb'))
+        meronyms_emb = model.wn.mern_proj(model.wn.embedding.weight)
+        with open(rel_emb_name_temp % ('mern_meronyms'), 'wb') as f:
+            pickle.dump(meronyms_emb.data, f)
+
+        meronyms_emb_np = meronyms_emb.data.cpu().numpy()
+        with open(rel_emb_name_temp_txt % ('mern_meronyms'), 'w') as f:
+            for i in range(meronyms_emb_np.shape[0]):
+                f.write(vocab.itos[i] + ' ')
+                f.write(' '.join([str(x) for x in meronyms_emb_np[i, :]]) + '\n')
+
+        holonyms_emb = model.wn.mern_rel(meronyms_emb)
+        with open(rel_emb_name_temp % ('mern_holonyms'), 'wb') as f:
+            pickle.dump(holonyms_emb.data, f)
+
+        holonyms_emb_np = holonyms_emb.data.cpu().numpy()
+        with open(rel_emb_name_temp_txt % ('mern_holonyms'), 'w') as f:
+            for i in range(holonyms_emb_np.shape[0]):
+                f.write(vocab.itos[i] + ' ')
+                f.write(' '.join([str(x) for x in holonyms_emb_np[i, :]]) + '\n')

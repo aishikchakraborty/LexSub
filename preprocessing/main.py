@@ -482,7 +482,6 @@ print('Creating test files')
 create_corpus(os.path.join(args.data, test), os.path.join(out_dir, 'test.txt'))
 print('Creating valid files')
 create_corpus(os.path.join(args.data, valid), os.path.join(out_dir, 'valid.txt'))
-import pdb; pdb.set_trace()
 if args.model == 'retro' and not args.from_file:
     with open(os.path.join(args.data, 'syn_v{}.txt'.format(args.version)), 'w') as syn:
         for syn_pair in global_synonyms:

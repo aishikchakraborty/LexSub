@@ -38,8 +38,9 @@ We will release new embeddings soon.
 * pytorch==0.4.1
 * GloVe 6B.300d embeddings.
 
-Clone the repository and then run
+Create a virtual env, clone the repository, and then run
 ```
+virtualenv ./env
 pip install -r requirements.txt
 ```
 Create the data directory and download GloVe embeddings.

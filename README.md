@@ -13,7 +13,7 @@ LexSub is a framework to unify lexical and distributional semantics by defining 
 
 ## Pre-trained Models
 You can download post-hoc retrofitted embeddings from here:
-* [glove-6B-300d](http://)
+* [glove-6B-300d](https://drive.google.com/file/d/1DtMLJzvwfak25PoRrt5Wq4_3w9x7r8Yy/view?usp=sharing)
 
 We will release new embeddings soon.
 ## Citation

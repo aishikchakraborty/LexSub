@@ -49,6 +49,7 @@ mkdir -p data/glove; cd data/glove;
 wget http://nlp.stanford.edu/data/glove.6B.zip .
 unzip glove.6B.zip;
 cd ../../;
+python preprocessing/glove/create_proper_files.py data/glove/glove.6B.300d.txt data/glove/vocab.txt;
 
 cd extrinsic_tasks/;
 unzip datasets.zip;
